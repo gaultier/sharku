@@ -67,7 +67,12 @@ struct Torrent {
 }
 
 async fn tracker_start(client: reqwest::Client, torrent: &Torrent) -> Result<()> {
-    let req = client.get(torrent.announce.as_ref().unwrap());
+    let url = torrent
+        .announce
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Missing annouce URL in the torrent file"))?;
+
+    let req = client.get(url);
 
     let res = req.send().await?.text().await?;
 
