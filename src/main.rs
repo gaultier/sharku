@@ -7,13 +7,14 @@ extern crate serde_bytes;
 use anyhow::{Context, Result};
 use serde_bencode::de;
 use serde_bytes::ByteBuf;
+use sha1::{Digest, Sha1};
 use std::fs::File as F;
 use std::io::Read;
 
 #[derive(Debug, Deserialize)]
 struct Node(String, i64);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct File {
     path: Vec<String>,
     length: i64,
@@ -21,7 +22,7 @@ struct File {
     md5sum: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Info {
     name: String,
     pieces: ByteBuf,
@@ -88,8 +89,14 @@ async fn main() -> Result<()> {
         .context("Failed to read torrent file")?;
 
     let torrent = de::from_bytes::<Torrent>(&content).context("Failed to parse torrent file")?;
-
     println!("{:#?}", &torrent);
+
+    let info_bytes =
+        serde_bencode::to_bytes(&torrent.info).context("Failed to serialize torrent info")?;
+    let mut hasher = Sha1::new();
+    hasher.update(info_bytes);
+    let info_hash = hasher.finalize();
+    println!("info_hash={:?}", info_hash);
 
     let client = reqwest::Client::new();
     tracker_start(client, &torrent)
