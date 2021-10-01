@@ -29,7 +29,7 @@ impl FromBencode for TorrentFile {
         }
 
         Ok(TorrentFile {
-            announce: announce.unwrap(),
+            announce: announce.ok_or_else(|| Error::missing_field("announce"))?,
         })
     }
 }
