@@ -66,15 +66,29 @@ struct Torrent {
     created_by: Option<String>,
 }
 
-fn main() -> Result<()> {
+async fn tracker_start(client: reqwest::Client, torrent: &Torrent) -> Result<()> {
+    let req = client.get(torrent.announce.as_ref().unwrap());
+
+    let res = req.send().await?.text().await?;
+
+    println!("Res={:#?}", res);
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
     let mut f = F::open("openbsd.torrent").context("Failed to open torrent file")?;
     let mut content = Vec::with_capacity(100_000);
     f.read_to_end(&mut content)
         .context("Failed to read torrent file")?;
 
-    let torrent_file =
-        de::from_bytes::<Torrent>(&content).context("Failed to parse torrent file")?;
+    let torrent = de::from_bytes::<Torrent>(&content).context("Failed to parse torrent file")?;
 
-    println!("{:#?}", torrent_file);
+    println!("{:#?}", &torrent);
+
+    let client = reqwest::Client::new();
+    tracker_start(client, &torrent)
+        .await
+        .context("Failed to contact tracker")?;
     Ok(())
 }
