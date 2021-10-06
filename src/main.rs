@@ -85,6 +85,23 @@ impl DownloadState {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct TrackerResponseError {
+    failure_reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TrackerResponsePeers {
+    interval: usize,
+    // peers: Vec<>
+}
+
+#[derive(Debug, Deserialize)]
+enum TrackerResponse {
+    Err(TrackerResponseError),
+    Ok(TrackerResponsePeers),
+}
+
 async fn tracker_start(
     client: reqwest::Client,
     torrent: &Torrent,
@@ -103,31 +120,27 @@ async fn tracker_start(
     let info_hash = hasher.finalize();
     println!("{:x?}", info_hash);
 
-    let mut req = client
-        .get(url)
-        .query(&[
-            ("port", port.to_string().as_str()),
-            ("peer_id", PEER_ID),
-            ("left", download_state.left.to_string().as_str()),
-            ("uploaded", download_state.uploaded.to_string().as_str()),
-            ("downloaded", download_state.downloaded.to_string().as_str()),
-        ])
-        .build()
-        .unwrap();
-
     let info_hash_percent_encoded = info_hash
         .iter()
         .map(|b| format!("%{:02X}", b))
         .collect::<String>();
 
-    let url = String::from(req.url().query().unwrap()) + "&info_hash=" + &info_hash_percent_encoded;
-    req.url_mut().set_query(Some(&url));
-    println!("url={}", &req.url());
+    let query = format!(
+        "port={}&peer_id={}&left={}&uploaded={}&downloaded={}&info_hash={}",
+        port,
+        PEER_ID,
+        download_state.left,
+        download_state.uploaded,
+        download_state.downloaded,
+        info_hash_percent_encoded
+    );
+    let req = format!("{}?{}", url, query);
+    println!("url={}", url);
 
-    let req = client.get(req.url().to_owned());
-    let res = req.send().await?.text().await?;
+    let res = client.get(req).send().await?.text().await?;
 
-    println!("Res={}", res);
+    // let decoded_res = de::from_str(res.as_str());
+    println!("Res={:?}", res);
     Ok(())
 }
 
