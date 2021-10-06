@@ -86,10 +86,19 @@ impl DownloadState {
 }
 
 #[derive(Debug, Deserialize)]
+struct Peer {
+    // #[serde(rename = "peer id")]
+    // id: [u8; 20],
+    port: u16,
+    ip: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct TrackerResponse {
     #[serde(rename = "failure reason")]
     failure_reason: Option<String>,
     interval: Option<usize>,
+    peers: Option<Vec<Peer>>,
 }
 
 async fn tracker_start(
@@ -101,7 +110,7 @@ async fn tracker_start(
     let url = torrent
         .announce
         .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Missing announce URL in the torrent file"))?;
+        .context("Missing announce URL in the torrent file")?;
 
     let info_bytes =
         serde_bencode::to_bytes(&torrent.info).context("Failed to serialize torrent info")?;
@@ -127,16 +136,24 @@ async fn tracker_start(
     let req = format!("{}?{}", url, query);
     println!("url={}", url);
 
-    let res = client.get(req).send().await?.text().await?;
+    let res = client
+        .get(req)
+        .send()
+        .await
+        .context("Failed to contact tracker")?
+        .text()
+        .await?;
 
-    let decoded_res: TrackerResponse = de::from_str(res.as_str())?;
+    println!("Res={}", res);
+    let decoded_res: TrackerResponse = de::from_str::<TrackerResponse>(res.as_str())
+        .with_context(|| "Failed to deserialize tracker response")?;
     println!("Res={:#?}", decoded_res);
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut f = F::open("openbsd.torrent").context("Failed to open torrent file")?;
+    let mut f = F::open("debian.torrent").context("Failed to open torrent file")?;
     let mut content = Vec::with_capacity(100_000);
     f.read_to_end(&mut content)
         .context("Failed to read torrent file")?;
@@ -153,7 +170,7 @@ async fn main() -> Result<()> {
     let port: u16 = 6881;
     tracker_start(client, &torrent, &download_state, port)
         .await
-        .context("Failed to contact tracker")?;
+        .context("Failed to start download with tracker")?;
 
     Ok(())
 }
