@@ -98,7 +98,7 @@ struct TrackerResponse {
     #[serde(rename = "failure reason")]
     failure_reason: Option<String>,
     interval: Option<usize>,
-    peers: Option<Vec<Peer>>,
+    peers: ByteBuf,
 }
 
 async fn tracker_start(
@@ -125,7 +125,7 @@ async fn tracker_start(
         .collect::<String>();
 
     let query = format!(
-        "port={}&peer_id={}&left={}&uploaded={}&downloaded={}&info_hash={}",
+        "port={}&compact=1&peer_id={}&left={}&uploaded={}&downloaded={}&info_hash={}",
         port,
         PEER_ID,
         download_state.left,
@@ -141,11 +141,11 @@ async fn tracker_start(
         .send()
         .await
         .context("Failed to contact tracker")?
-        .text()
+        .bytes()
         .await?;
 
-    println!("Res={}", res);
-    let decoded_res: TrackerResponse = de::from_str::<TrackerResponse>(res.as_str())
+    println!("Res={:?}", res);
+    let decoded_res: TrackerResponse = de::from_bytes::<TrackerResponse>(&res)
         .with_context(|| "Failed to deserialize tracker response")?;
     println!("Res={:#?}", decoded_res);
     Ok(())
