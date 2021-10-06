@@ -8,8 +8,11 @@ use anyhow::{Context, Result};
 use serde_bencode::de;
 use serde_bytes::ByteBuf;
 use sha1::{Digest, Sha1};
+use std::convert::TryInto;
 use std::fs::File as F;
 use std::io::Read;
+use std::net::{IpAddr, Ipv4Addr};
+use std::str;
 
 const PEER_ID: &'static str = "unpetitnuagebleuvert";
 
@@ -90,7 +93,7 @@ struct Peer {
     // #[serde(rename = "peer id")]
     // id: [u8; 20],
     port: u16,
-    ip: String,
+    ip: IpAddr,
 }
 
 #[derive(Debug, Deserialize)]
@@ -148,7 +151,38 @@ async fn tracker_start(
     let decoded_res: TrackerResponse = de::from_bytes::<TrackerResponse>(&res)
         .with_context(|| "Failed to deserialize tracker response")?;
     println!("Res={:#?}", decoded_res);
+
+    let peers = decode_compact_peers(decoded_res.peers.as_slice())?;
+    println!("Peers={:#?}", peers);
+
     Ok(())
+}
+
+fn as_u16_be(array: &[u8; 2]) -> u16 {
+    ((array[0] as u16) << 8) + ((array[1] as u16) << 0)
+}
+
+fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
+    if compact_peers.len() % 6 != 0 {
+        return Err(anyhow::anyhow!("The compact peers list has the wrong size"));
+    }
+    Ok(compact_peers
+        .chunks(6)
+        .map(|bytes| {
+            let ip_bytes: [u8; 4] = bytes[0..4]
+                .try_into()
+                .with_context(|| "Failed to get 4 bytes for the peer ip")
+                .unwrap();
+            let port_bytes: &[u8; 2] = bytes[4..6]
+                .try_into()
+                .with_context(|| "Failed to get 4 bytes for the peer ip")
+                .unwrap();
+            Peer {
+                ip: IpAddr::V4(Ipv4Addr::from(ip_bytes)),
+                port: as_u16_be(port_bytes),
+            }
+        })
+        .collect())
 }
 
 #[tokio::main]
