@@ -11,6 +11,8 @@ use sha1::{Digest, Sha1};
 use std::fs::File as F;
 use std::io::Read;
 
+const PEER_ID: &'static str = "unpetitnuagebleuvert";
+
 #[derive(Debug, Deserialize)]
 struct Node(String, i64);
 
@@ -67,17 +69,65 @@ struct Torrent {
     created_by: Option<String>,
 }
 
-async fn tracker_start(client: reqwest::Client, torrent: &Torrent) -> Result<()> {
+struct DownloadState {
+    uploaded: usize,
+    downloaded: usize,
+    left: usize,
+}
+
+impl DownloadState {
+    fn new() -> Self {
+        DownloadState {
+            uploaded: 0,
+            downloaded: 0,
+            left: 0,
+        }
+    }
+}
+
+async fn tracker_start(
+    client: reqwest::Client,
+    torrent: &Torrent,
+    download_state: &DownloadState,
+    port: u16,
+) -> Result<()> {
     let url = torrent
         .announce
         .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Missing annouce URL in the torrent file"))?;
+        .ok_or_else(|| anyhow::anyhow!("Missing announce URL in the torrent file"))?;
 
-    let req = client.get(url);
+    let info_bytes =
+        serde_bencode::to_bytes(&torrent.info).context("Failed to serialize torrent info")?;
+    let mut hasher = Sha1::new();
+    hasher.update(info_bytes);
+    let info_hash = hasher.finalize();
+    println!("{:x?}", info_hash);
 
+    let mut req = client
+        .get(url)
+        .query(&[
+            ("port", port.to_string().as_str()),
+            ("peer_id", PEER_ID),
+            ("left", download_state.left.to_string().as_str()),
+            ("uploaded", download_state.uploaded.to_string().as_str()),
+            ("downloaded", download_state.downloaded.to_string().as_str()),
+        ])
+        .build()
+        .unwrap();
+
+    let info_hash_percent_encoded = info_hash
+        .iter()
+        .map(|b| format!("%{:02X}", b))
+        .collect::<String>();
+
+    let url = String::from(req.url().query().unwrap()) + "&info_hash=" + &info_hash_percent_encoded;
+    req.url_mut().set_query(Some(&url));
+    println!("url={}", &req.url());
+
+    let req = client.get(req.url().to_owned());
     let res = req.send().await?.text().await?;
 
-    println!("Res={:#?}", res);
+    println!("Res={}", res);
     Ok(())
 }
 
@@ -89,18 +139,14 @@ async fn main() -> Result<()> {
         .context("Failed to read torrent file")?;
 
     let torrent = de::from_bytes::<Torrent>(&content).context("Failed to parse torrent file")?;
-    println!("{:#?}", &torrent);
-
-    let info_bytes =
-        serde_bencode::to_bytes(&torrent.info).context("Failed to serialize torrent info")?;
-    let mut hasher = Sha1::new();
-    hasher.update(info_bytes);
-    let info_hash = hasher.finalize();
-    println!("info_hash={:?}", info_hash);
+    // println!("{:#?}", &torrent);
 
     let client = reqwest::Client::new();
-    tracker_start(client, &torrent)
+    let download_state = DownloadState::new();
+    let port: u16 = 6881;
+    tracker_start(client, &torrent, &download_state, port)
         .await
         .context("Failed to contact tracker")?;
+
     Ok(())
 }
