@@ -86,20 +86,10 @@ impl DownloadState {
 }
 
 #[derive(Debug, Deserialize)]
-struct TrackerResponseError {
-    failure_reason: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct TrackerResponsePeers {
-    interval: usize,
-    // peers: Vec<>
-}
-
-#[derive(Debug, Deserialize)]
-enum TrackerResponse {
-    Err(TrackerResponseError),
-    Ok(TrackerResponsePeers),
+struct TrackerResponse {
+    #[serde(rename = "failure reason")]
+    failure_reason: Option<String>,
+    interval: Option<usize>,
 }
 
 async fn tracker_start(
@@ -139,8 +129,8 @@ async fn tracker_start(
 
     let res = client.get(req).send().await?.text().await?;
 
-    // let decoded_res = de::from_str(res.as_str());
-    println!("Res={:?}", res);
+    let decoded_res: TrackerResponse = de::from_str(res.as_str())?;
+    println!("Res={:#?}", decoded_res);
     Ok(())
 }
 
