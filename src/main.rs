@@ -145,7 +145,11 @@ async fn main() -> Result<()> {
     // println!("{:#?}", &torrent);
 
     let client = reqwest::Client::new();
-    let download_state = DownloadState::new();
+    let download_state = DownloadState {
+        downloaded: 0,
+        uploaded: 0,
+        left: torrent.info.length.unwrap_or(0) as usize,
+    };
     let port: u16 = 6881;
     tracker_start(client, &torrent, &download_state, port)
         .await
