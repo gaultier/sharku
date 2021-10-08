@@ -1,13 +1,14 @@
 use sharku::torrent_file::*;
 
 use anyhow::{Context, Result};
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use futures::future::join_all;
 use serde::Deserialize;
 use serde_bencode::de;
 use serde_bytes::ByteBuf;
 use sha1::{Digest, Sha1};
 use std::convert::TryInto;
+use std::io::Cursor;
 use std::net::{IpAddr, Ipv4Addr};
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -147,10 +148,6 @@ async fn tracker_start(
     Ok(decode_compact_peers(decoded_res.peers.as_slice())?)
 }
 
-fn as_u16_be(array: &[u8; 2]) -> u16 {
-    ((array[0] as u16) << 8) + (array[1] as u16)
-}
-
 fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
     if compact_peers.len() % 6 != 0 {
         return Err(anyhow::anyhow!("The compact peers list has the wrong size"));
@@ -164,11 +161,11 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
                 .unwrap();
             let port_bytes: &[u8; 2] = bytes[4..6]
                 .try_into()
-                .with_context(|| "Failed to get 4 bytes for the peer ip")
+                .with_context(|| "Failed to get 2 bytes for the peer port")
                 .unwrap();
             Peer {
                 ip: IpAddr::V4(Ipv4Addr::from(ip_bytes)),
-                port: as_u16_be(port_bytes),
+                port: ReadBytesExt::read_u16::<BigEndian>(&mut Cursor::new(port_bytes)).unwrap(),
             }
         })
         .collect())
