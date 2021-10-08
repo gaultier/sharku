@@ -14,7 +14,7 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use std::str;
 use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 const PEER_ID: &[u8; 20] = b"unpetitnuagebleuvert";
@@ -238,51 +238,50 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
     log::debug!("{}: Received peer id:{:?}", &addr, &buf[..PEER_ID.len()],);
 
     // Interested
-    // socket
-    //     .write_all(&u32::to_be_bytes(1))
-    //     .await
-    //     .with_context(|| "Failed to write size")?;
-    // socket
-    //     .write_all(&[MessageKind::Interested as u8])
-    //     .await
-    //     .with_context(|| "Failed to write Interested")?;
-    // log::debug!("{}: Sent interested", &addr);
+    socket
+        .write_all(&u32::to_be_bytes(1))
+        .await
+        .with_context(|| "Failed to write size")?;
+    socket
+        .write_all(&[MessageKind::Interested as u8])
+        .await
+        .with_context(|| "Failed to write Interested")?;
+    log::debug!("{}: Sent interested", &addr);
 
     // Choke
-    // socket
-    //     .write_all(&u32::to_be_bytes(1))
-    //     .await
-    //     .with_context(|| "Failed to write size")?;
-    // socket
-    //     .write_all(&[MessageKind::Choke as u8])
-    //     .await
-    //     .with_context(|| "Failed to write Choke")?;
-    // log::debug!("{}: Sent choke", &addr);
+    socket
+        .write_all(&u32::to_be_bytes(1))
+        .await
+        .with_context(|| "Failed to write size")?;
+    socket
+        .write_all(&[MessageKind::Choke as u8])
+        .await
+        .with_context(|| "Failed to write Choke")?;
+    log::debug!("{}: Sent choke", &addr);
 
-    // let (mut rd, mut _wr) = io::split(socket);
+    let (mut rd, mut wr) = io::split(socket);
 
-    // let addr_writer = addr.clone();
-    // let _write_task = tokio::spawn(async move {
-    //     let mut buf = vec![0; 1024];
-    //     let msg = Message::Request {
-    //         index: 0,
-    //         begin: 0,
-    //         length: BLOCK_LENGTH,
-    //     };
-    //     WriteBytesExt::write_u32::<BigEndian>(&mut buf, 1 + 4 * 3)?;
-    //     msg.to_bytes(&mut buf)
-    //         .with_context(|| format!("{}: Failed to write request", &addr_writer))?;
+    let addr_writer = addr.clone();
+    let _write_task = tokio::spawn(async move {
+        let mut buf = vec![0; 1024];
+        let msg = Message::Request {
+            index: 0,
+            begin: 0,
+            length: BLOCK_LENGTH,
+        };
+        WriteBytesExt::write_u32::<BigEndian>(&mut buf, 1 + 4 * 3)?;
+        msg.to_bytes(&mut buf)
+            .with_context(|| format!("{}: Failed to write request", &addr_writer))?;
 
-    //     wr.write_all(&buf)
-    //         .await
-    //         .with_context(|| "Failed to write request to peer")?;
-    //     log::debug!("{}: Sent request", &addr_writer);
-    //     Ok::<_, anyhow::Error>(())
-    // });
+        wr.write_all(&buf)
+            .await
+            .with_context(|| "Failed to write request to peer")?;
+        log::debug!("{}: Sent request", &addr_writer);
+        Ok::<_, anyhow::Error>(())
+    });
 
     loop {
-        socket
-            .read_exact(&mut buf[..4])
+        rd.read_exact(&mut buf[..4])
             .await
             .with_context(|| "Failed to read from peer")?;
 
@@ -303,8 +302,7 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         }
         buf.resize(advisory_length, 0);
 
-        socket
-            .read_exact(&mut buf[..advisory_length])
+        rd.read_exact(&mut buf[..advisory_length])
             .await
             .with_context(|| "Failed to read from peer")?;
         let msg = parse_message(&mut buf[..advisory_length])?;
