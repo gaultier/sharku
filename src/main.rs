@@ -14,6 +14,7 @@ use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 const PEER_ID: &'static str = "unpetitnuagebleuvert";
+const HANDSHAKE: &[u8; 28] = b"\x13BitTorrent protocol\x00\x00\x00\x00\x00\x00\x00\x00";
 
 struct DownloadState {
     uploaded: usize,
@@ -127,16 +128,18 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
 
 async fn peer_talk(peer: Peer) -> Result<()> {
     let addr = format!("{}:{}", peer.ip, peer.port);
-    println!("Try to connect to {}", &addr);
+    println!("{}: Trying to connect", &addr);
     let socket = TcpStream::connect(&addr).await?;
-    println!("Connected to {}", &addr);
+    println!("{}: Connected", &addr);
     let (mut rd, mut wr) = io::split(socket);
 
     // Write data in the background
     let _write_task = tokio::spawn(async move {
-        wr.write_all(b"hello\r\n")
+        wr.write_all(HANDSHAKE)
             .await
-            .with_context(|| "Failed to write to peer")
+            .with_context(|| "Failed to write to peer")?;
+        println!(" Sent handshake");
+        Ok::<_, anyhow::Error>(())
     });
 
     let mut buf = vec![0; 1024];
@@ -151,7 +154,7 @@ async fn peer_talk(peer: Peer) -> Result<()> {
             break;
         }
 
-        println!("GOT {:?}", &buf[..n]);
+        println!("{}: GOT {:?}", &addr, &buf[..n]);
     }
     Ok(())
 }
