@@ -48,23 +48,25 @@ struct TrackerResponse {
     peers: ByteBuf,
 }
 
+fn info_hash(torrent: &Torrent) -> Result<[u8; 20]> {
+    let info_bytes =
+        serde_bencode::to_bytes(&torrent.info).context("Failed to serialize torrent info")?;
+    let mut hasher = Sha1::new();
+    hasher.update(info_bytes);
+    Ok(hasher.finalize().into())
+}
+
 async fn tracker_start(
     client: reqwest::Client,
     torrent: &Torrent,
     download_state: &DownloadState,
     port: u16,
+    info_hash: &[u8; 20],
 ) -> Result<Vec<Peer>> {
     let url = torrent
         .announce
         .as_ref()
         .context("Missing announce URL in the torrent file")?;
-
-    let info_bytes =
-        serde_bencode::to_bytes(&torrent.info).context("Failed to serialize torrent info")?;
-    let mut hasher = Sha1::new();
-    hasher.update(info_bytes);
-    let info_hash = hasher.finalize();
-    println!("{:x?}", info_hash);
 
     let info_hash_percent_encoded = info_hash
         .iter()
@@ -126,7 +128,7 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
         .collect())
 }
 
-async fn peer_talk(peer: Peer) -> Result<()> {
+async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
     let addr = format!("{}:{}", peer.ip, peer.port);
     println!("{}: Trying to connect", &addr);
     let socket = TcpStream::connect(&addr).await?;
@@ -137,8 +139,11 @@ async fn peer_talk(peer: Peer) -> Result<()> {
     let _write_task = tokio::spawn(async move {
         wr.write_all(HANDSHAKE)
             .await
-            .with_context(|| "Failed to write to peer")?;
+            .with_context(|| "Failed to write handshake to peer")?;
         println!(" Sent handshake");
+        wr.write_all(&info_hash)
+            .await
+            .with_context(|| "Failed to write info_hash to peer")?;
         Ok::<_, anyhow::Error>(())
     });
 
@@ -170,7 +175,8 @@ async fn main() -> Result<()> {
         ..DownloadState::default()
     };
     let port: u16 = 6881;
-    let peers = tracker_start(client, &torrent, &download_state, port)
+    let info_hash = info_hash(&torrent)?;
+    let peers = tracker_start(client, &torrent, &download_state, port, &info_hash)
         .await
         .context("Failed to start download with tracker")?;
 
@@ -178,7 +184,7 @@ async fn main() -> Result<()> {
         .into_iter()
         .map(|p| {
             println!("Peer: {:#?}", p);
-            tokio::spawn(async move { peer_talk(p).await })
+            tokio::spawn(async move { peer_talk(p, info_hash.clone()).await })
         })
         .collect::<Vec<_>>();
 
