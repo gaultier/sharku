@@ -1,6 +1,7 @@
 use sharku::torrent_file::*;
 
 use anyhow::{Context, Result};
+use futures::future::join_all;
 use serde::Deserialize;
 use serde_bencode::de;
 use serde_bytes::ByteBuf;
@@ -125,23 +126,25 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
 }
 
 async fn peer_talk(peer: Peer) -> Result<()> {
-    let socket = TcpStream::connect(format!("{}:{}", peer.ip, peer.port)).await?;
+    let addr = format!("{}:{}", peer.ip, peer.port);
+    let socket = TcpStream::connect(&addr).await?;
+    println!("Connected to {}", &addr);
     let (mut rd, mut wr) = io::split(socket);
 
     // Write data in the background
-    let write_task = tokio::spawn(async move {
-        wr.write_all(b"hello\r\n").await?;
-        wr.write_all(b"world\r\n").await?;
-
-        // Sometimes, the rust type inferencer needs
-        // a little help
-        Ok::<_, io::Error>(())
+    let _write_task = tokio::spawn(async move {
+        wr.write_all(b"hello\r\n")
+            .await
+            .with_context(|| "Failed to write to peer")
     });
 
-    let mut buf = vec![0; 128];
+    let mut buf = vec![0; 1024];
 
     loop {
-        let n = rd.read(&mut buf).await?;
+        let n = rd
+            .read(&mut buf)
+            .await
+            .with_context(|| "Failed to read from peer")?;
 
         if n == 0 {
             break;
@@ -167,13 +170,14 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to start download with tracker")?;
 
-    for p in peers.into_iter() {
-        println!("Peer: {:#?}", p);
-        tokio::spawn(async move {
-            peer_talk(p).await?;
-            Ok::<_, io::Error>(())
-        });
-    }
+    let tasks = peers
+        .into_iter()
+        .map(|p| {
+            println!("Peer: {:#?}", p);
+            tokio::spawn(async move { peer_talk(p).await })
+        })
+        .collect::<Vec<_>>();
 
+    join_all(tasks).await;
     Ok(())
 }
