@@ -85,7 +85,7 @@ async fn tracker_start(
         info_hash_percent_encoded
     );
     let req = format!("{}?{}", url, query);
-    println!("url={}", url);
+    log::debug!("url={}", url);
 
     let res = client
         .get(req)
@@ -95,10 +95,8 @@ async fn tracker_start(
         .bytes()
         .await?;
 
-    println!("Res={:?}", res);
     let decoded_res: TrackerResponse = de::from_bytes::<TrackerResponse>(&res)
         .with_context(|| "Failed to deserialize tracker response")?;
-    println!("Res={:#?}", decoded_res);
 
     Ok(decode_compact_peers(decoded_res.peers.as_slice())?)
 }
@@ -133,9 +131,9 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
 async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
     let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
     let addr_writer = addr.clone();
-    println!("{}: Trying to connect", &addr);
+    log::debug!("{}: Trying to connect", &addr);
     let socket = TcpStream::connect(addr.deref()).await?;
-    println!("{}: Connected", &addr);
+    log::debug!("{}: Connected", &addr);
     let (mut rd, mut wr) = io::split(socket);
 
     // Write data in the background
@@ -143,20 +141,21 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         wr.write_all(HANDSHAKE)
             .await
             .with_context(|| "Failed to write handshake to peer")?;
-        println!("{}: Sent handshake", &addr_writer);
+        log::debug!("{}: Sent handshake", &addr_writer);
 
         wr.write_all(&info_hash)
             .await
             .with_context(|| "Failed to write info_hash to peer")?;
-        println!("{}: Sent info_hash", &addr_writer);
+        log::debug!("{}: Sent info_hash", &addr_writer);
         Ok::<_, anyhow::Error>(())
     });
 
     let mut buf = vec![0; 1024];
 
     loop {
+        let padding_len = 8;
         let n = rd
-            .read(&mut buf)
+            .read_exact(&mut buf[..HANDSHAKE.len()])
             .await
             .with_context(|| "Failed to read from peer")?;
 
@@ -164,13 +163,24 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
             break;
         }
 
-        println!("{}: GOT {:?}", &addr, &buf[..n]);
+        log::debug!("{}: Received: n={} data={:?}", &addr, n, &buf[..n]);
+
+        if buf[..n - padding_len] != HANDSHAKE[..n - padding_len] {
+            log::warn!(
+                "{}: Received wrong handshake:\nexpected=\t{:?}\ngot=\t{:?}",
+                &addr,
+                &HANDSHAKE[..n - padding_len],
+                &buf[..n - padding_len]
+            );
+            return Ok(());
+        }
     }
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::init();
     let torrent_file_path = PathBuf::from("debian.torrent");
     let torrent = decode_torrent_from_file(&torrent_file_path)?;
 
@@ -187,10 +197,7 @@ async fn main() -> Result<()> {
 
     let tasks = peers
         .into_iter()
-        .map(|p| {
-            println!("Peer: {:#?}", p);
-            tokio::spawn(async move { peer_talk(p, info_hash).await })
-        })
+        .map(|p| tokio::spawn(async move { peer_talk(p, info_hash).await }))
         .collect::<Vec<_>>();
 
     join_all(tasks).await;
