@@ -8,8 +8,10 @@ use serde_bytes::ByteBuf;
 use sha1::{Digest, Sha1};
 use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr};
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::str;
+use std::sync::Arc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
@@ -129,9 +131,10 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
 }
 
 async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
-    let addr = format!("{}:{}", peer.ip, peer.port);
+    let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
+    let addr_writer = addr.clone();
     println!("{}: Trying to connect", &addr);
-    let socket = TcpStream::connect(&addr).await?;
+    let socket = TcpStream::connect(addr.deref()).await?;
     println!("{}: Connected", &addr);
     let (mut rd, mut wr) = io::split(socket);
 
@@ -140,10 +143,12 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         wr.write_all(HANDSHAKE)
             .await
             .with_context(|| "Failed to write handshake to peer")?;
-        println!(" Sent handshake");
+        println!("{}: Sent handshake", &addr_writer);
+
         wr.write_all(&info_hash)
             .await
             .with_context(|| "Failed to write info_hash to peer")?;
+        println!("{}: Sent info_hash", &addr_writer);
         Ok::<_, anyhow::Error>(())
     });
 
