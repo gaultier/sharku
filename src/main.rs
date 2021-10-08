@@ -153,6 +153,7 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         .await
         .with_context(|| "Failed to read from peer")?;
 
+    // The padding bytes could theoritically be different although they usually are 0
     if buf[..n - padding_len] != HANDSHAKE[..n - padding_len] {
         log::warn!(
             "{}: Received wrong handshake:\nexpected=\t{:?}\ngot=\t{:?}",
@@ -160,7 +161,7 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
             &HANDSHAKE[..n - padding_len],
             &buf[..n - padding_len]
         );
-        return Ok(());
+        return Ok(()); // TODO: Should it be an error here?
     }
     log::debug!("{}: Validated handshake", &addr);
 
