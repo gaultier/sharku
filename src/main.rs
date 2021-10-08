@@ -14,11 +14,12 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use std::str;
 use std::sync::Arc;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-const PEER_ID: &str = "unpetitnuagebleuvert";
+const PEER_ID: &[u8; 20] = b"unpetitnuagebleuvert";
 const HANDSHAKE: &[u8; 28] = b"\x13BitTorrent protocol\x00\x00\x00\x00\x00\x00\x00\x00";
+const BLOCK_LENGTH: u32 = 16384;
 
 #[derive(Debug)]
 enum MessageKind {
@@ -125,7 +126,7 @@ async fn tracker_start(
     let query = format!(
         "port={}&compact=1&peer_id={}&left={}&uploaded={}&downloaded={}&info_hash={}",
         port,
-        PEER_ID,
+        String::from_utf8_lossy(PEER_ID),
         download_state.left,
         download_state.uploaded,
         download_state.downloaded,
@@ -150,7 +151,10 @@ async fn tracker_start(
 
 fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
     if compact_peers.len() % 6 != 0 {
-        return Err(anyhow::anyhow!("The compact peers list has the wrong size"));
+        anyhow::bail!(
+            "The compact peers list has the wrong size: {}",
+            compact_peers.len()
+        );
     }
     Ok(compact_peers
         .chunks(6)
@@ -189,80 +193,145 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         .with_context(|| "Failed to write info_hash to peer")?;
     log::debug!("{}: Sent info_hash", &addr);
 
-    let padding_len = 8;
     let mut buf = vec![0; 1024];
-    let n = socket
+    socket
         .read_exact(&mut buf[..HANDSHAKE.len()])
         .await
         .with_context(|| "Failed to read from peer")?;
 
-    // The padding bytes could theoritically be different although they usually are 0
-    if buf[..n - padding_len] != HANDSHAKE[..n - padding_len] {
+    if buf[..20] != HANDSHAKE[..20] {
         log::warn!(
             "{}: Received wrong handshake:\nexpected=\t{:?}\ngot=\t{:?}",
             &addr,
-            &HANDSHAKE[..n - padding_len],
-            &buf[..n - padding_len]
+            &HANDSHAKE[..20],
+            &buf[..20]
         );
-        return Ok(()); // TODO: Should it be an error here?
+        anyhow::bail!(
+            "{}: Received wrong handshake:\nexpected=\t{:?}\ngot=\t{:?}",
+            &addr,
+            &HANDSHAKE[..20],
+            &buf[..20]
+        );
     }
     log::debug!("{}: Validated handshake", &addr);
 
-    let (mut rd, mut wr) = io::split(socket);
+    socket
+        .read_exact(&mut buf[..info_hash.len()])
+        .await
+        .with_context(|| "Failed to read info_hash")?;
+    log::debug!(
+        "{}: Received info_hash:{:?}",
+        &addr,
+        &buf[..info_hash.len()],
+    );
 
-    let addr_writer = addr.clone();
-    let _write_task = tokio::spawn(async move {
-        let mut buf = vec![0; 1024];
-        let msg = Message::Request {
-            index: 0,
-            begin: 0,
-            length: 16384,
-        };
-        msg.to_bytes(&mut buf)
-            .with_context(|| format!("{}: Failed to write request", &addr_writer))?;
+    socket
+        .write_all(PEER_ID)
+        .await
+        .with_context(|| "Failed to write peer id")?;
+    log::debug!("{}: Sent peer id", &addr);
 
-        wr.write_all(&buf)
-            .await
-            .with_context(|| "Failed to write request to peer")?;
-        log::debug!("{}: Sent request", &addr_writer);
-        Ok::<_, anyhow::Error>(())
-    });
+    socket
+        .read_exact(&mut buf[..PEER_ID.len()])
+        .await
+        .with_context(|| "Failed to read peer id")?;
+    log::debug!("{}: Received peer id:{:?}", &addr, &buf[..PEER_ID.len()],);
+
+    // Interested
+    // socket
+    //     .write_all(&u32::to_be_bytes(1))
+    //     .await
+    //     .with_context(|| "Failed to write size")?;
+    // socket
+    //     .write_all(&[MessageKind::Interested as u8])
+    //     .await
+    //     .with_context(|| "Failed to write Interested")?;
+    // log::debug!("{}: Sent interested", &addr);
+
+    // Choke
+    // socket
+    //     .write_all(&u32::to_be_bytes(1))
+    //     .await
+    //     .with_context(|| "Failed to write size")?;
+    // socket
+    //     .write_all(&[MessageKind::Choke as u8])
+    //     .await
+    //     .with_context(|| "Failed to write Choke")?;
+    // log::debug!("{}: Sent choke", &addr);
+
+    // let (mut rd, mut _wr) = io::split(socket);
+
+    // let addr_writer = addr.clone();
+    // let _write_task = tokio::spawn(async move {
+    //     let mut buf = vec![0; 1024];
+    //     let msg = Message::Request {
+    //         index: 0,
+    //         begin: 0,
+    //         length: BLOCK_LENGTH,
+    //     };
+    //     WriteBytesExt::write_u32::<BigEndian>(&mut buf, 1 + 4 * 3)?;
+    //     msg.to_bytes(&mut buf)
+    //         .with_context(|| format!("{}: Failed to write request", &addr_writer))?;
+
+    //     wr.write_all(&buf)
+    //         .await
+    //         .with_context(|| "Failed to write request to peer")?;
+    //     log::debug!("{}: Sent request", &addr_writer);
+    //     Ok::<_, anyhow::Error>(())
+    // });
 
     loop {
-        let n = rd
+        socket
             .read_exact(&mut buf[..4])
             .await
             .with_context(|| "Failed to read from peer")?;
 
-        log::debug!("{}: Received: n={} data={:?}", &addr, n, &buf[..n]);
-        if n == 0 {
-            log::debug!("{}: Read 0, stopping", &addr);
-            break;
-        }
+        log::debug!("{}: Received: data={:?}", &addr, &buf[..4]);
 
-        let msg = parse_message(&buf)?;
+        let advisory_length: usize = u32::from_be_bytes(buf[..4].try_into().unwrap()) as usize;
+        log::debug!("{}: advisory_length={}", &addr, advisory_length);
+        // TODO: ??
+        if advisory_length > BLOCK_LENGTH as usize + 9 {
+            log::warn!(
+                "Advisory length is bigger than buffer size: advisory_length={}",
+                advisory_length
+            );
+            anyhow::bail!(
+                "Advisory length is bigger than buffer size: advisory_length={}",
+                advisory_length
+            );
+        }
+        buf.resize(advisory_length, 0);
+
+        socket
+            .read_exact(&mut buf[..advisory_length])
+            .await
+            .with_context(|| "Failed to read from peer")?;
+        let msg = parse_message(&mut buf[..advisory_length])?;
         log::debug!("{}: msg={:?}", &addr, &msg);
     }
-    Ok(())
 }
 
-fn parse_message(buf: &[u8]) -> Result<Message> {
+fn parse_message(buf: &mut [u8]) -> Result<Message> {
     match buf {
-        &[] => unreachable!(),
-        &[k, _] if (k & 0xff) == MessageKind::Choke as u8 => Ok(Message::Choke),
-        &[k, _] if (k & 0xff) == MessageKind::Unchoke as u8 => Ok(Message::Unchoke),
-        &[k, _] if (k & 0xff) == MessageKind::Interested as u8 => Ok(Message::Interested),
-        &[k, _] if (k & 0xff) == MessageKind::NotInterested as u8 => Ok(Message::NotInterested),
-        &[k, _] if (k & 0xff) == MessageKind::Have as u8 => Ok(Message::Have),
-        &[k, _] if (k & 0xff) == MessageKind::Bitfield as u8 => Ok(Message::Bitfield),
-        &[k, _] if (k & 0xff) == MessageKind::Request as u8 => Ok(Message::Request {
-            index: 0,
-            begin: 0,
-            length: 0,
-        }),
-        &[k, _] if (k & 0xff) == MessageKind::Piece as u8 => Ok(Message::Piece),
-        &[k, _] if (k & 0xff) == MessageKind::Cancel as u8 => Ok(Message::Cancel),
-        _ => anyhow::bail!(format!("Unkown message: {:?}", buf)),
+        &mut [] => unreachable!(),
+        &mut [k, _] if (k & 0xff) == MessageKind::Choke as u8 => Ok(Message::Choke),
+        &mut [k, _] if (k & 0xff) == MessageKind::Unchoke as u8 => Ok(Message::Unchoke),
+        &mut [k, _] if (k & 0xff) == MessageKind::Interested as u8 => Ok(Message::Interested),
+        &mut [k, _] if (k & 0xff) == MessageKind::NotInterested as u8 => Ok(Message::NotInterested),
+        &mut [k, _] if (k & 0xff) == MessageKind::Have as u8 => Ok(Message::Have),
+        &mut [k, _] if (k & 0xff) == MessageKind::Bitfield as u8 => Ok(Message::Bitfield),
+        &mut [k, _] if (k & 0xff) == MessageKind::Request as u8 => {
+            let mut cursor = Cursor::new(buf);
+            Ok(Message::Request {
+                index: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
+                begin: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
+                length: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
+            })
+        }
+        &mut [k, _] if (k & 0xff) == MessageKind::Piece as u8 => Ok(Message::Piece),
+        &mut [k, _] if (k & 0xff) == MessageKind::Cancel as u8 => Ok(Message::Cancel),
+        _ => anyhow::bail!("Unkown message: {:?}", buf),
     }
 }
 
@@ -285,7 +354,14 @@ async fn main() -> Result<()> {
 
     let tasks = peers
         .into_iter()
-        .map(|p| tokio::spawn(async move { peer_talk(p, info_hash).await }))
+        .map(|p| {
+            tokio::spawn(async move {
+                peer_talk(p, info_hash).await.map_err(|err| {
+                    log::trace!("Error: {}", err);
+                    err
+                })
+            })
+        })
         .collect::<Vec<_>>();
 
     join_all(tasks).await;
