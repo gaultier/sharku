@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-const PEER_ID: &'static str = "unpetitnuagebleuvert";
+const PEER_ID: &str = "unpetitnuagebleuvert";
 const HANDSHAKE: &[u8; 28] = b"\x13BitTorrent protocol\x00\x00\x00\x00\x00\x00\x00\x00";
 
 struct DownloadState {
@@ -104,7 +104,7 @@ async fn tracker_start(
 }
 
 fn as_u16_be(array: &[u8; 2]) -> u16 {
-    ((array[0] as u16) << 8) + ((array[1] as u16) << 0)
+    ((array[0] as u16) << 8) + (array[1] as u16)
 }
 
 fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
@@ -189,7 +189,7 @@ async fn main() -> Result<()> {
         .into_iter()
         .map(|p| {
             println!("Peer: {:#?}", p);
-            tokio::spawn(async move { peer_talk(p, info_hash.clone()).await })
+            tokio::spawn(async move { peer_talk(p, info_hash).await })
         })
         .collect::<Vec<_>>();
 
