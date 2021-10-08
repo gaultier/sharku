@@ -18,6 +18,22 @@ use tokio::net::TcpStream;
 const PEER_ID: &str = "unpetitnuagebleuvert";
 const HANDSHAKE: &[u8; 28] = b"\x13BitTorrent protocol\x00\x00\x00\x00\x00\x00\x00\x00";
 
+#[derive(Debug)]
+enum MessageKind {
+    Choke = 0,
+    Unchoke = 1,
+    Interested = 2,
+    NotInterested = 3,
+    Have = 4,
+    Bitfield = 5,
+    Request = 6,
+    Piece = 7,
+    Cancel = 8,
+}
+
+#[derive(Debug)]
+enum Message {}
+
 struct DownloadState {
     uploaded: usize,
     downloaded: usize,
@@ -188,8 +204,46 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
             log::debug!("{}: Read 0, stopping", &addr);
             break;
         }
+
+        let msg = parse_message(&buf)?;
+        log::debug!("{}: msg={:?}", &addr, &msg);
     }
     Ok(())
+}
+
+fn parse_message(buf: &[u8]) -> Result<Message> {
+    match buf {
+        &[] => unreachable!(),
+        &[k, _] if (k & 0xff) == MessageKind::Choke as u8 => {
+            todo!()
+        }
+        &[k, _] if (k & 0xff) == MessageKind::Unchoke as u8 => {
+            todo!()
+        }
+        &[k, _] if (k & 0xff) == MessageKind::Interested as u8 => {
+            todo!()
+        }
+        &[k, _] if (k & 0xff) == MessageKind::NotInterested as u8 => {
+            todo!()
+        }
+        &[k, _] if (k & 0xff) == MessageKind::Have as u8 => {
+            todo!()
+        }
+        &[k, _] if (k & 0xff) == MessageKind::Bitfield as u8 => {
+            todo!()
+        }
+        &[k, _] if (k & 0xff) == MessageKind::Request as u8 => {
+            todo!()
+        }
+        &[k, _] if (k & 0xff) == MessageKind::Piece as u8 => {
+            log::debug!("Choke");
+            todo!()
+        }
+        &[k, _] if (k & 0xff) == MessageKind::Cancel as u8 => {
+            todo!()
+        }
+        _ => todo!(),
+    }
 }
 
 #[tokio::main]
