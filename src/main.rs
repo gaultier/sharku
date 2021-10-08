@@ -9,6 +9,8 @@ use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::str;
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 const PEER_ID: &'static str = "unpetitnuagebleuvert";
 
@@ -49,7 +51,7 @@ async fn tracker_start(
     torrent: &Torrent,
     download_state: &DownloadState,
     port: u16,
-) -> Result<()> {
+) -> Result<Vec<Peer>> {
     let url = torrent
         .announce
         .as_ref()
@@ -92,10 +94,7 @@ async fn tracker_start(
         .with_context(|| "Failed to deserialize tracker response")?;
     println!("Res={:#?}", decoded_res);
 
-    let peers = decode_compact_peers(decoded_res.peers.as_slice())?;
-    println!("Peers={:#?}", peers);
-
-    Ok(())
+    Ok(decode_compact_peers(decoded_res.peers.as_slice())?)
 }
 
 fn as_u16_be(array: &[u8; 2]) -> u16 {
@@ -125,6 +124,34 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
         .collect())
 }
 
+async fn peer_talk(peer: Peer) -> Result<()> {
+    let socket = TcpStream::connect(format!("{}:{}", peer.ip, peer.port)).await?;
+    let (mut rd, mut wr) = io::split(socket);
+
+    // Write data in the background
+    let write_task = tokio::spawn(async move {
+        wr.write_all(b"hello\r\n").await?;
+        wr.write_all(b"world\r\n").await?;
+
+        // Sometimes, the rust type inferencer needs
+        // a little help
+        Ok::<_, io::Error>(())
+    });
+
+    let mut buf = vec![0; 128];
+
+    loop {
+        let n = rd.read(&mut buf).await?;
+
+        if n == 0 {
+            break;
+        }
+
+        println!("GOT {:?}", &buf[..n]);
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let torrent_file_path = PathBuf::from("debian.torrent");
@@ -136,9 +163,17 @@ async fn main() -> Result<()> {
         ..DownloadState::default()
     };
     let port: u16 = 6881;
-    tracker_start(client, &torrent, &download_state, port)
+    let peers = tracker_start(client, &torrent, &download_state, port)
         .await
         .context("Failed to start download with tracker")?;
+
+    for p in peers.into_iter() {
+        println!("Peer: {:#?}", p);
+        tokio::spawn(async move {
+            peer_talk(p).await?;
+            Ok::<_, io::Error>(())
+        });
+    }
 
     Ok(())
 }
