@@ -127,6 +127,7 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
 
 async fn peer_talk(peer: Peer) -> Result<()> {
     let addr = format!("{}:{}", peer.ip, peer.port);
+    println!("Try to connect to {}", &addr);
     let socket = TcpStream::connect(&addr).await?;
     println!("Connected to {}", &addr);
     let (mut rd, mut wr) = io::split(socket);
