@@ -179,12 +179,13 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
 
     loop {
         let n = rd
-            .read_exact(&mut buf[..HANDSHAKE.len()])
+            .read_exact(&mut buf)
             .await
             .with_context(|| "Failed to read from peer")?;
 
         log::debug!("{}: Received: n={} data={:?}", &addr, n, &buf[..n]);
         if n == 0 {
+            log::debug!("{}: Read 0, stopping", &addr);
             break;
         }
     }
