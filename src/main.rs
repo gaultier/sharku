@@ -1,6 +1,7 @@
 use sharku::torrent_file::*;
 
 use anyhow::{Context, Result};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use futures::future::join_all;
 use serde::Deserialize;
 use serde_bencode::de;
@@ -32,7 +33,36 @@ enum MessageKind {
 }
 
 #[derive(Debug)]
-enum Message {}
+enum Message {
+    Choke,
+    Unchoke,
+    Interested,
+    NotInterested,
+    Have,
+    Bitfield,
+    Request { index: u32, begin: u32, length: u32 },
+    Piece,
+    Cancel,
+}
+
+impl Message {
+    fn to_bytes(&self, buf: &mut Vec<u8>) -> Result<()> {
+        match self {
+            &Message::Request {
+                begin,
+                index,
+                length,
+            } => {
+                WriteBytesExt::write_u8(buf, MessageKind::Request as u8)?;
+                WriteBytesExt::write_u32::<BigEndian>(buf, index)?;
+                WriteBytesExt::write_u32::<BigEndian>(buf, begin)?;
+                WriteBytesExt::write_u32::<BigEndian>(buf, length)?;
+            }
+            _ => todo!(),
+        };
+        Ok(())
+    }
+}
 
 struct DownloadState {
     uploaded: usize,
@@ -181,21 +211,29 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
     }
     log::debug!("{}: Validated handshake", &addr);
 
-    let (mut rd, mut _wr) = io::split(socket);
+    let (mut rd, mut wr) = io::split(socket);
 
-    // Write data in the background
-    // let addr_writer = addr.clone();
-    // let _write_task = tokio::spawn(async move {
-    //     wr.write_all(&info_hash)
-    //         .await
-    //         .with_context(|| "Failed to write info_hash to peer")?;
-    //     log::debug!("{}: Sent info_hash", &addr_writer);
-    //     Ok::<_, anyhow::Error>(())
-    // });
+    let addr_writer = addr.clone();
+    let _write_task = tokio::spawn(async move {
+        let mut buf = vec![0; 1024];
+        let msg = Message::Request {
+            index: 0,
+            begin: 0,
+            length: 16384,
+        };
+        msg.to_bytes(&mut buf)
+            .with_context(|| format!("{}: Failed to write request", &addr_writer))?;
+
+        wr.write_all(&buf)
+            .await
+            .with_context(|| "Failed to write request to peer")?;
+        log::debug!("{}: Sent request", &addr_writer);
+        Ok::<_, anyhow::Error>(())
+    });
 
     loop {
         let n = rd
-            .read_exact(&mut buf)
+            .read_exact(&mut buf[..4])
             .await
             .with_context(|| "Failed to read from peer")?;
 
@@ -214,35 +252,20 @@ async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
 fn parse_message(buf: &[u8]) -> Result<Message> {
     match buf {
         &[] => unreachable!(),
-        &[k, _] if (k & 0xff) == MessageKind::Choke as u8 => {
-            todo!()
-        }
-        &[k, _] if (k & 0xff) == MessageKind::Unchoke as u8 => {
-            todo!()
-        }
-        &[k, _] if (k & 0xff) == MessageKind::Interested as u8 => {
-            todo!()
-        }
-        &[k, _] if (k & 0xff) == MessageKind::NotInterested as u8 => {
-            todo!()
-        }
-        &[k, _] if (k & 0xff) == MessageKind::Have as u8 => {
-            todo!()
-        }
-        &[k, _] if (k & 0xff) == MessageKind::Bitfield as u8 => {
-            todo!()
-        }
-        &[k, _] if (k & 0xff) == MessageKind::Request as u8 => {
-            todo!()
-        }
-        &[k, _] if (k & 0xff) == MessageKind::Piece as u8 => {
-            log::debug!("Choke");
-            todo!()
-        }
-        &[k, _] if (k & 0xff) == MessageKind::Cancel as u8 => {
-            todo!()
-        }
-        _ => todo!(),
+        &[k, _] if (k & 0xff) == MessageKind::Choke as u8 => Ok(Message::Choke),
+        &[k, _] if (k & 0xff) == MessageKind::Unchoke as u8 => Ok(Message::Unchoke),
+        &[k, _] if (k & 0xff) == MessageKind::Interested as u8 => Ok(Message::Interested),
+        &[k, _] if (k & 0xff) == MessageKind::NotInterested as u8 => Ok(Message::NotInterested),
+        &[k, _] if (k & 0xff) == MessageKind::Have as u8 => Ok(Message::Have),
+        &[k, _] if (k & 0xff) == MessageKind::Bitfield as u8 => Ok(Message::Bitfield),
+        &[k, _] if (k & 0xff) == MessageKind::Request as u8 => Ok(Message::Request {
+            index: 0,
+            begin: 0,
+            length: 0,
+        }),
+        &[k, _] if (k & 0xff) == MessageKind::Piece as u8 => Ok(Message::Piece),
+        &[k, _] if (k & 0xff) == MessageKind::Cancel as u8 => Ok(Message::Cancel),
+        _ => anyhow::bail!(format!("Unkown message: {:?}", buf)),
     }
 }
 
