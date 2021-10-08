@@ -130,49 +130,61 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
 
 async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
     let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
-    let addr_writer = addr.clone();
     log::debug!("{}: Trying to connect", &addr);
-    let socket = TcpStream::connect(addr.deref()).await?;
+    let mut socket = TcpStream::connect(addr.deref()).await?;
     log::debug!("{}: Connected", &addr);
-    let (mut rd, mut wr) = io::split(socket);
+
+    socket
+        .write_all(HANDSHAKE)
+        .await
+        .with_context(|| "Failed to write handshake to peer")?;
+    log::debug!("{}: Sent handshake", &addr);
+
+    socket
+        .write_all(&info_hash)
+        .await
+        .with_context(|| "Failed to write info_hash to peer")?;
+    log::debug!("{}: Sent info_hash", &addr);
+
+    let padding_len = 8;
+    let mut buf = vec![0; 1024];
+    let n = socket
+        .read_exact(&mut buf[..HANDSHAKE.len()])
+        .await
+        .with_context(|| "Failed to read from peer")?;
+
+    if buf[..n - padding_len] != HANDSHAKE[..n - padding_len] {
+        log::warn!(
+            "{}: Received wrong handshake:\nexpected=\t{:?}\ngot=\t{:?}",
+            &addr,
+            &HANDSHAKE[..n - padding_len],
+            &buf[..n - padding_len]
+        );
+        return Ok(());
+    }
+    log::debug!("{}: Validated handshake", &addr);
+
+    let (mut rd, mut _wr) = io::split(socket);
 
     // Write data in the background
-    let _write_task = tokio::spawn(async move {
-        wr.write_all(HANDSHAKE)
-            .await
-            .with_context(|| "Failed to write handshake to peer")?;
-        log::debug!("{}: Sent handshake", &addr_writer);
-
-        wr.write_all(&info_hash)
-            .await
-            .with_context(|| "Failed to write info_hash to peer")?;
-        log::debug!("{}: Sent info_hash", &addr_writer);
-        Ok::<_, anyhow::Error>(())
-    });
-
-    let mut buf = vec![0; 1024];
+    // let addr_writer = addr.clone();
+    // let _write_task = tokio::spawn(async move {
+    //     wr.write_all(&info_hash)
+    //         .await
+    //         .with_context(|| "Failed to write info_hash to peer")?;
+    //     log::debug!("{}: Sent info_hash", &addr_writer);
+    //     Ok::<_, anyhow::Error>(())
+    // });
 
     loop {
-        let padding_len = 8;
         let n = rd
             .read_exact(&mut buf[..HANDSHAKE.len()])
             .await
             .with_context(|| "Failed to read from peer")?;
 
+        log::debug!("{}: Received: n={} data={:?}", &addr, n, &buf[..n]);
         if n == 0 {
             break;
-        }
-
-        log::debug!("{}: Received: n={} data={:?}", &addr, n, &buf[..n]);
-
-        if buf[..n - padding_len] != HANDSHAKE[..n - padding_len] {
-            log::warn!(
-                "{}: Received wrong handshake:\nexpected=\t{:?}\ngot=\t{:?}",
-                &addr,
-                &HANDSHAKE[..n - padding_len],
-                &buf[..n - padding_len]
-            );
-            return Ok(());
         }
     }
     Ok(())
