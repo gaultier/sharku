@@ -1,76 +1,16 @@
-extern crate serde;
-extern crate serde_bencode;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_bytes;
+use sharku::torrent_file::*;
 
 use anyhow::{Context, Result};
+use serde::Deserialize;
 use serde_bencode::de;
 use serde_bytes::ByteBuf;
 use sha1::{Digest, Sha1};
 use std::convert::TryInto;
-use std::fs::File as F;
-use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr};
+use std::path::PathBuf;
 use std::str;
 
 const PEER_ID: &'static str = "unpetitnuagebleuvert";
-
-#[derive(Debug, Deserialize)]
-struct Node(String, i64);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct File {
-    path: Vec<String>,
-    length: i64,
-    #[serde(default)]
-    md5sum: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Info {
-    name: String,
-    pieces: ByteBuf,
-    #[serde(rename = "piece length")]
-    piece_length: i64,
-    #[serde(default)]
-    md5sum: Option<String>,
-    #[serde(default)]
-    length: Option<i64>,
-    #[serde(default)]
-    files: Option<Vec<File>>,
-    #[serde(default)]
-    private: Option<u8>,
-    #[serde(default)]
-    path: Option<Vec<String>>,
-    #[serde(default)]
-    #[serde(rename = "root hash")]
-    root_hash: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Torrent {
-    info: Info,
-    #[serde(default)]
-    announce: Option<String>,
-    #[serde(default)]
-    nodes: Option<Vec<Node>>,
-    #[serde(default)]
-    encoding: Option<String>,
-    #[serde(default)]
-    httpseeds: Option<Vec<String>>,
-    #[serde(default)]
-    #[serde(rename = "announce-list")]
-    announce_list: Option<Vec<Vec<String>>>,
-    #[serde(default)]
-    #[serde(rename = "creation date")]
-    creation_date: Option<i64>,
-    #[serde(rename = "comment")]
-    comment: Option<String>,
-    #[serde(default)]
-    #[serde(rename = "created by")]
-    created_by: Option<String>,
-}
 
 struct DownloadState {
     uploaded: usize,
@@ -79,7 +19,7 @@ struct DownloadState {
 }
 
 impl DownloadState {
-    fn new() -> Self {
+    fn default() -> Self {
         DownloadState {
             uploaded: 0,
             downloaded: 0,
@@ -187,19 +127,13 @@ fn decode_compact_peers(compact_peers: &[u8]) -> Result<Vec<Peer>> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut f = F::open("debian.torrent").context("Failed to open torrent file")?;
-    let mut content = Vec::with_capacity(100_000);
-    f.read_to_end(&mut content)
-        .context("Failed to read torrent file")?;
-
-    let torrent = de::from_bytes::<Torrent>(&content).context("Failed to parse torrent file")?;
-    // println!("{:#?}", &torrent);
+    let torrent_file_path = PathBuf::from("debian.torrent");
+    let torrent = decode_torrent_from_file(&torrent_file_path)?;
 
     let client = reqwest::Client::new();
     let download_state = DownloadState {
-        downloaded: 0,
-        uploaded: 0,
         left: torrent.info.length.unwrap_or(0) as usize,
+        ..DownloadState::default()
     };
     let port: u16 = 6881;
     tracker_start(client, &torrent, &download_state, port)

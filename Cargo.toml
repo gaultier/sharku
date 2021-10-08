@@ -1,5 +1,5 @@
 [package]
-name = "rust-torrent"
+name = "sharku"
 version = "0.1.0"
 edition = "2018"
 
@@ -9,7 +9,7 @@ edition = "2018"
 anyhow = "1.0.13"
 serde_bencode = "^0.2.3"
 serde_bytes = "0.11"
-serde = "^1.0.0"
+serde = {version="1.0.130", features = ["derive"]}
 serde_derive = "^1.0.0"
 reqwest = { version = "0.11.3"}
 tokio = { version = "1", features = ["full"] }
