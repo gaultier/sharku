@@ -9,6 +9,8 @@ use std::sync::Arc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
+const MAX_MESSAGE_LEN: usize = BLOCK_LENGTH as usize + 9;
+
 async fn handshake(socket: &mut TcpStream, info_hash: &[u8; 20], addr: &str) -> Result<()> {
     socket
         .write_all(HANDSHAKE)
@@ -114,7 +116,7 @@ pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> R
         Ok::<_, anyhow::Error>(())
     });
 
-    let mut buf = vec![0; BLOCK_LENGTH as usize + 9];
+    let mut buf = vec![0; MAX_MESSAGE_LEN];
     loop {
         rd.read_exact(&mut buf[..4])
             .await
@@ -124,12 +126,16 @@ pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> R
 
         let advisory_length: usize = u32::from_be_bytes(buf[..4].try_into().unwrap()) as usize;
         log::debug!("{}: advisory_length={}", &addr, advisory_length);
-        // TODO: ??
         if advisory_length > buf.len() {
             anyhow::bail!(
                 "Advisory length is bigger than buffer size: advisory_length={}",
                 advisory_length
             );
+        }
+
+        // Keep-alive, ignore
+        if advisory_length == 0 {
+            continue;
         }
 
         rd.read_exact(&mut buf[..advisory_length])
@@ -141,7 +147,8 @@ pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> R
 }
 
 fn parse_message(buf: &mut [u8]) -> Result<Message> {
-    log::debug!("MessageKind::Bitfield == {}", MessageKind::Bitfield as u8);
+    assert!(buf.len() > 0);
+    assert!(buf.len() < MAX_MESSAGE_LEN);
     match buf.as_mut() {
         [] => unreachable!(),
         [k, ..] if *k == MessageKind::Choke as u8 => Ok(Message::Choke),
