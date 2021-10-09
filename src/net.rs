@@ -154,7 +154,9 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
                 &mut cursor,
             )?))
         }
-        &mut [k, _] if (k & 0xff) == MessageKind::Bitfield as u8 => Ok(Message::Bitfield),
+        &mut [k, _] if (k & 0xff) == MessageKind::Bitfield as u8 => {
+            Ok(Message::Bitfield(buf[1..].into()))
+        }
         &mut [k, _] if (k & 0xff) == MessageKind::Request as u8 => {
             let mut cursor = Cursor::new(buf);
             ReadBytesExt::read_u8(&mut cursor)?;

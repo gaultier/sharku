@@ -25,7 +25,7 @@ pub enum Message {
     Interested,
     NotInterested,
     Have(u32),
-    Bitfield,
+    Bitfield(Vec<u8>),
     Request { index: u32, begin: u32, length: u32 },
     Piece,
     Cancel,
