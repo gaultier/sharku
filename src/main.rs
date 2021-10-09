@@ -3,7 +3,6 @@ use sharku::torrent_file::*;
 use sharku::tracker::*;
 
 use anyhow::{Context, Result};
-use futures::future::join_all;
 use std::path::PathBuf;
 
 #[tokio::main]
@@ -23,18 +22,14 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to start download with tracker")?;
 
-    let tasks = peers
-        .into_iter()
-        .map(|p| {
-            tokio::spawn(async move {
-                peer_talk(p, info_hash).await.map_err(|err| {
-                    log::trace!("Error: {}", err);
-                    err
-                })
-            })
-        })
-        .collect::<Vec<_>>();
-
-    join_all(tasks).await;
+    for p in peers.into_iter() {
+        tokio::spawn(async move {
+            let _ = peer_talk(p, info_hash).await.map_err(|err| {
+                log::warn!("Err: {}", err);
+            });
+        });
+    }
+    let notify = tokio::sync::Notify::new();
+    notify.notified().await;
     Ok(())
 }
