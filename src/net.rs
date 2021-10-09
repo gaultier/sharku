@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-async fn handshake(socket: &mut TcpStream, addr: &str, info_hash: &[u8; 20]) -> Result<()> {
+async fn handshake(socket: &mut TcpStream, info_hash: &[u8; 20], addr: &str) -> Result<()> {
     socket
         .write_all(HANDSHAKE)
         .await
@@ -64,13 +64,12 @@ async fn handshake(socket: &mut TcpStream, addr: &str, info_hash: &[u8; 20]) -> 
     Ok(())
 }
 
-pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
-    let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
+pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> Result<()> {
     log::debug!("{}: Trying to connect", &addr);
     let mut socket = TcpStream::connect(addr.deref()).await?;
     log::debug!("{}: Connected", &addr);
 
-    handshake(&mut socket, &addr, &info_hash).await?;
+    handshake(&mut socket, &info_hash, &addr).await?;
 
     // Interested
     socket
@@ -106,12 +105,12 @@ pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         };
         WriteBytesExt::write_u32::<BigEndian>(&mut buf, 1 + 4 * 3)?;
         msg.to_bytes(&mut buf)
-            .with_context(|| format!("{}: Failed to write request", &addr_writer))?;
+            .with_context(|| format!("{}: Failed to write request", addr_writer))?;
 
         wr.write_all(&buf)
             .await
             .with_context(|| "Failed to write request to peer")?;
-        log::debug!("{}: Sent request", &addr_writer);
+        log::debug!("{}: Sent request", addr_writer);
         Ok::<_, anyhow::Error>(())
     });
 

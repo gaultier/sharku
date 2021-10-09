@@ -1,6 +1,7 @@
 use sharku::net::*;
 use sharku::torrent_file::*;
 use sharku::tracker::*;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use std::path::PathBuf;
@@ -22,11 +23,14 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to start download with tracker")?;
 
-    for p in peers.into_iter() {
+    for peer in peers.into_iter() {
         tokio::spawn(async move {
-            let _ = peer_talk(p, info_hash).await.map_err(|err| {
-                log::warn!("Err: {}", err);
-            });
+            let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
+            let _ = peer_talk(peer, info_hash, addr.clone())
+                .await
+                .map_err(|err| {
+                    log::warn!("{}: Err: {}", &addr, err);
+                });
         });
     }
     let notify = tokio::sync::Notify::new();
