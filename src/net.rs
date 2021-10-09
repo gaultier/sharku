@@ -9,12 +9,7 @@ use std::sync::Arc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
-    let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
-    log::debug!("{}: Trying to connect", &addr);
-    let mut socket = TcpStream::connect(addr.deref()).await?;
-    log::debug!("{}: Connected", &addr);
-
+async fn handshake(socket: &mut TcpStream, addr: &str, info_hash: &[u8; 20]) -> Result<()> {
     socket
         .write_all(HANDSHAKE)
         .await
@@ -22,14 +17,15 @@ pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
     log::debug!("{}: Sent handshake", &addr);
 
     socket
-        .write_all(&info_hash)
+        .write_all(info_hash)
         .await
         .with_context(|| "Failed to write info_hash to peer")?;
     log::debug!("{}: Sent info_hash", &addr);
 
-    let mut buf = vec![0; 1024];
+    assert_eq!(HANDSHAKE.len(), 28);
+    let mut buf = [0u8; HANDSHAKE.len()];
     socket
-        .read_exact(&mut buf[..HANDSHAKE.len()])
+        .read_exact(&mut buf)
         .await
         .with_context(|| "Failed to read from peer")?;
 
@@ -64,6 +60,17 @@ pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         .await
         .with_context(|| "Failed to read peer id")?;
     log::debug!("{}: Received peer id:{:?}", &addr, &buf[..PEER_ID.len()],);
+
+    Ok(())
+}
+
+pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
+    let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
+    log::debug!("{}: Trying to connect", &addr);
+    let mut socket = TcpStream::connect(addr.deref()).await?;
+    log::debug!("{}: Connected", &addr);
+
+    handshake(&mut socket, &addr, &info_hash).await?;
 
     // Interested
     socket
@@ -108,6 +115,7 @@ pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         Ok::<_, anyhow::Error>(())
     });
 
+    let mut buf = vec![0; BLOCK_LENGTH as usize + 9];
     loop {
         rd.read_exact(&mut buf[..4])
             .await
@@ -118,13 +126,12 @@ pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         let advisory_length: usize = u32::from_be_bytes(buf[..4].try_into().unwrap()) as usize;
         log::debug!("{}: advisory_length={}", &addr, advisory_length);
         // TODO: ??
-        if advisory_length > BLOCK_LENGTH as usize + 9 {
+        if advisory_length > buf.len() {
             anyhow::bail!(
                 "Advisory length is bigger than buffer size: advisory_length={}",
                 advisory_length
             );
         }
-        buf.resize(advisory_length, 0);
 
         rd.read_exact(&mut buf[..advisory_length])
             .await
