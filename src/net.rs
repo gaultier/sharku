@@ -157,6 +157,7 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
         [k, ..] if *k == MessageKind::NotInterested as u8 => Ok(Message::NotInterested),
         [k, ..] if *k == MessageKind::Have as u8 => {
             let mut cursor = Cursor::new(buf);
+            // Tag
             ReadBytesExt::read_u8(&mut cursor)?;
             Ok(Message::Have(ReadBytesExt::read_u32::<BigEndian>(
                 &mut cursor,
@@ -165,6 +166,7 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
         [k, ..] if *k == MessageKind::Bitfield as u8 => Ok(Message::Bitfield(buf[1..].into())),
         [k, ..] if *k == MessageKind::Request as u8 => {
             let mut cursor = Cursor::new(buf);
+            // Tag
             ReadBytesExt::read_u8(&mut cursor)?;
             Ok(Message::Request {
                 index: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
@@ -172,8 +174,29 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
                 length: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
             })
         }
-        [k, ..] if *k == MessageKind::Piece as u8 => Ok(Message::Piece),
-        [k, ..] if *k == MessageKind::Cancel as u8 => Ok(Message::Cancel),
+        [k, ..] if *k == MessageKind::Piece as u8 => {
+            let len = buf.len();
+            let mut cursor = Cursor::new(buf);
+            // Tag
+            ReadBytesExt::read_u8(&mut cursor)?;
+            let index = ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?;
+            let begin = ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?;
+            let position = cursor.position().min(len as u64) as usize;
+            Ok(Message::Piece {
+                index,
+                begin,
+                data: cursor.into_inner()[position..].to_owned(),
+            })
+        }
+        [k, ..] if *k == MessageKind::Cancel as u8 => {
+            let mut cursor = Cursor::new(buf);
+            ReadBytesExt::read_u8(&mut cursor)?;
+            Ok(Message::Cancel {
+                index: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
+                begin: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
+                length: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
+            })
+        }
         _ => anyhow::bail!("Unkown message: {:?}", buf),
     }
 }
