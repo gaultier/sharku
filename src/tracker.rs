@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use serde_bencode::de;
 use serde_bytes::ByteBuf;
+use sha1::{Digest, Sha1};
 use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr};
 
@@ -35,6 +36,14 @@ impl DownloadState {
             left: 0,
         }
     }
+}
+
+pub fn info_hash(torrent: &Torrent) -> Result<[u8; 20]> {
+    let info_bytes =
+        serde_bencode::to_bytes(&torrent.info).context("Failed to serialize torrent info")?;
+    let mut hasher = Sha1::new();
+    hasher.update(info_bytes);
+    Ok(hasher.finalize().into())
 }
 
 pub async fn tracker_start(
