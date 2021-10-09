@@ -24,7 +24,7 @@ pub enum Message {
     Unchoke,
     Interested,
     NotInterested,
-    Have,
+    Have(u32),
     Bitfield,
     Request { index: u32, begin: u32, length: u32 },
     Piece,

@@ -147,10 +147,17 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
         &mut [k, _] if (k & 0xff) == MessageKind::Unchoke as u8 => Ok(Message::Unchoke),
         &mut [k, _] if (k & 0xff) == MessageKind::Interested as u8 => Ok(Message::Interested),
         &mut [k, _] if (k & 0xff) == MessageKind::NotInterested as u8 => Ok(Message::NotInterested),
-        &mut [k, _] if (k & 0xff) == MessageKind::Have as u8 => Ok(Message::Have),
+        &mut [k, _] if (k & 0xff) == MessageKind::Have as u8 => {
+            let mut cursor = Cursor::new(buf);
+            ReadBytesExt::read_u8(&mut cursor)?;
+            Ok(Message::Have(ReadBytesExt::read_u32::<BigEndian>(
+                &mut cursor,
+            )?))
+        }
         &mut [k, _] if (k & 0xff) == MessageKind::Bitfield as u8 => Ok(Message::Bitfield),
         &mut [k, _] if (k & 0xff) == MessageKind::Request as u8 => {
             let mut cursor = Cursor::new(buf);
+            ReadBytesExt::read_u8(&mut cursor)?;
             Ok(Message::Request {
                 index: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
                 begin: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
