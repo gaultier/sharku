@@ -5,7 +5,7 @@ pub const PEER_ID: &[u8; 20] = b"unpetitnuagebleuvert";
 pub const HANDSHAKE: &[u8; 28] = b"\x13BitTorrent protocol\x00\x00\x00\x00\x00\x00\x00\x00";
 pub const BLOCK_LENGTH: u32 = 16384;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum MessageKind {
     Choke = 0,
     Unchoke = 1,
@@ -18,7 +18,7 @@ pub enum MessageKind {
     Cancel = 8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Message {
     Choke,
     Unchoke,

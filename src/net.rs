@@ -141,23 +141,22 @@ pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> R
 }
 
 fn parse_message(buf: &mut [u8]) -> Result<Message> {
-    match buf {
-        &mut [] => unreachable!(),
-        &mut [k, _] if (k & 0xff) == MessageKind::Choke as u8 => Ok(Message::Choke),
-        &mut [k, _] if (k & 0xff) == MessageKind::Unchoke as u8 => Ok(Message::Unchoke),
-        &mut [k, _] if (k & 0xff) == MessageKind::Interested as u8 => Ok(Message::Interested),
-        &mut [k, _] if (k & 0xff) == MessageKind::NotInterested as u8 => Ok(Message::NotInterested),
-        &mut [k, _] if (k & 0xff) == MessageKind::Have as u8 => {
+    log::debug!("MessageKind::Bitfield == {}", MessageKind::Bitfield as u8);
+    match buf.as_mut() {
+        [] => unreachable!(),
+        [k, ..] if *k == MessageKind::Choke as u8 => Ok(Message::Choke),
+        [k, ..] if *k == MessageKind::Unchoke as u8 => Ok(Message::Unchoke),
+        [k, ..] if *k == MessageKind::Interested as u8 => Ok(Message::Interested),
+        [k, ..] if *k == MessageKind::NotInterested as u8 => Ok(Message::NotInterested),
+        [k, ..] if *k == MessageKind::Have as u8 => {
             let mut cursor = Cursor::new(buf);
             ReadBytesExt::read_u8(&mut cursor)?;
             Ok(Message::Have(ReadBytesExt::read_u32::<BigEndian>(
                 &mut cursor,
             )?))
         }
-        &mut [k, _] if (k & 0xff) == MessageKind::Bitfield as u8 => {
-            Ok(Message::Bitfield(buf[1..].into()))
-        }
-        &mut [k, _] if (k & 0xff) == MessageKind::Request as u8 => {
+        [k, ..] if *k == MessageKind::Bitfield as u8 => Ok(Message::Bitfield(buf[1..].into())),
+        [k, ..] if *k == MessageKind::Request as u8 => {
             let mut cursor = Cursor::new(buf);
             ReadBytesExt::read_u8(&mut cursor)?;
             Ok(Message::Request {
@@ -166,8 +165,21 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
                 length: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
             })
         }
-        &mut [k, _] if (k & 0xff) == MessageKind::Piece as u8 => Ok(Message::Piece),
-        &mut [k, _] if (k & 0xff) == MessageKind::Cancel as u8 => Ok(Message::Cancel),
+        [k, ..] if *k == MessageKind::Piece as u8 => Ok(Message::Piece),
+        [k, ..] if *k == MessageKind::Cancel as u8 => Ok(Message::Cancel),
         _ => anyhow::bail!("Unkown message: {:?}", buf),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{message::Message, message::MessageKind, net::parse_message};
+
+    #[test]
+    fn parse_message_bitfield() {
+        assert_eq!(
+            parse_message(&mut [MessageKind::Bitfield as u8, 1, 2, 3]).unwrap(),
+            Message::Bitfield(vec![1, 2, 3])
+        );
     }
 }
