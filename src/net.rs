@@ -189,4 +189,20 @@ mod tests {
             Message::Bitfield(vec![1, 2, 3])
         );
     }
+
+    #[test]
+    fn parse_message_request() {
+        let mut bytes = vec![MessageKind::Request as u8];
+        bytes.extend_from_slice(&u32::to_be_bytes(0xcafe));
+        bytes.extend_from_slice(&u32::to_be_bytes(0xabcd));
+        bytes.extend_from_slice(&u32::to_be_bytes(0xef12));
+        assert_eq!(
+            parse_message(&mut bytes).unwrap(),
+            Message::Request {
+                index: 0xcafe,
+                begin: 0xabcd,
+                length: 0xef12,
+            }
+        );
+    }
 }
