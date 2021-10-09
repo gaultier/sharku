@@ -34,12 +34,6 @@ pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         .with_context(|| "Failed to read from peer")?;
 
     if buf[..20] != HANDSHAKE[..20] {
-        log::warn!(
-            "{}: Received wrong handshake:\nexpected=\t{:?}\ngot=\t{:?}",
-            &addr,
-            &HANDSHAKE[..20],
-            &buf[..20]
-        );
         anyhow::bail!(
             "{}: Received wrong handshake:\nexpected=\t{:?}\ngot=\t{:?}",
             &addr,
@@ -125,10 +119,6 @@ pub async fn peer_talk(peer: Peer, info_hash: [u8; 20]) -> Result<()> {
         log::debug!("{}: advisory_length={}", &addr, advisory_length);
         // TODO: ??
         if advisory_length > BLOCK_LENGTH as usize + 9 {
-            log::warn!(
-                "Advisory length is bigger than buffer size: advisory_length={}",
-                advisory_length
-            );
             anyhow::bail!(
                 "Advisory length is bigger than buffer size: advisory_length={}",
                 advisory_length
