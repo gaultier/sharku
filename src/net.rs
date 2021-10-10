@@ -120,7 +120,7 @@ impl Message {
     }
 }
 
-pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> Result<()> {
+pub async fn peer_talk(info_hash: [u8; 20], addr: Arc<String>) -> Result<()> {
     log::debug!("{}: Trying to connect", &addr);
     let mut socket = TcpStream::connect(addr.deref()).await?;
     log::debug!("{}: Connected", &addr);

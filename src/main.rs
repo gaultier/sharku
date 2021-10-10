@@ -37,11 +37,9 @@ async fn main() -> Result<()> {
     for peer in peers.into_iter().take(4) {
         tokio::spawn(async move {
             let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
-            let _ = peer_talk(peer, info_hash, addr.clone())
-                .await
-                .map_err(|err| {
-                    log::warn!("{}: Err: {}", &addr, err);
-                });
+            let _ = peer_talk(info_hash, addr.clone()).await.map_err(|err| {
+                log::warn!("{}: Err: {}", &addr, err);
+            });
         });
     }
     let notify = tokio::sync::Notify::new();
