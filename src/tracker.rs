@@ -1,4 +1,5 @@
 use crate::message::PEER_ID;
+use crate::state::DownloadState;
 use crate::torrent_file::Torrent;
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -20,22 +21,6 @@ pub struct TrackerResponse {
     pub failure_reason: Option<String>,
     pub interval: Option<usize>,
     pub peers: ByteBuf,
-}
-
-pub struct DownloadState {
-    pub uploaded: usize,
-    pub downloaded: usize,
-    pub left: usize,
-}
-
-impl DownloadState {
-    pub fn default() -> Self {
-        DownloadState {
-            uploaded: 0,
-            downloaded: 0,
-            left: 0,
-        }
-    }
 }
 
 pub fn info_hash(torrent: &Torrent) -> Result<[u8; 20]> {

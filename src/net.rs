@@ -1,5 +1,4 @@
 use crate::message::*;
-use crate::tracker::Peer;
 use anyhow::{Context, Result};
 use bit_vec::BitVec;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};

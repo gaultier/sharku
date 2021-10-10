@@ -1,6 +1,7 @@
 use anyhow::bail;
 use sharku::fs::*;
 use sharku::net::*;
+use sharku::state::*;
 use sharku::torrent_file::*;
 use sharku::tracker::*;
 use std::sync::Arc;
