@@ -228,4 +228,36 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn parse_message_piece() {
+        let mut bytes = vec![MessageKind::Piece as u8];
+        bytes.extend_from_slice(&u32::to_be_bytes(0xcafe));
+        bytes.extend_from_slice(&u32::to_be_bytes(0xabcd));
+        bytes.extend_from_slice(&[7, 8, 9, 10, 11]);
+        assert_eq!(
+            parse_message(&mut bytes).unwrap(),
+            Message::Piece {
+                index: 0xcafe,
+                begin: 0xabcd,
+                data: vec![7, 8, 9, 10, 11],
+            }
+        );
+    }
+
+    #[test]
+    fn parse_message_cancel() {
+        let mut bytes = vec![MessageKind::Cancel as u8];
+        bytes.extend_from_slice(&u32::to_be_bytes(0xcafe));
+        bytes.extend_from_slice(&u32::to_be_bytes(0xabcd));
+        bytes.extend_from_slice(&u32::to_be_bytes(0xef12));
+        assert_eq!(
+            parse_message(&mut bytes).unwrap(),
+            Message::Cancel {
+                index: 0xcafe,
+                begin: 0xabcd,
+                length: 0xef12,
+            }
+        );
+    }
 }
