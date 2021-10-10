@@ -33,8 +33,8 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to start download with tracker")?;
 
+    // FIXME
     for peer in peers.into_iter().take(4) {
-        // FIXME
         tokio::spawn(async move {
             let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
             let _ = peer_talk(peer, info_hash, addr.clone())
