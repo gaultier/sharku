@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-const MAX_MESSAGE_LEN: usize = BLOCK_LENGTH as usize + 9;
+const MAX_MESSAGE_LEN: usize = BLOCK_LENGTH as usize + 1 + 4 + 4;
 
 async fn handshake(socket: &mut TcpStream, info_hash: &[u8; 20], addr: &str) -> Result<()> {
     socket
@@ -64,6 +64,24 @@ async fn handshake(socket: &mut TcpStream, info_hash: &[u8; 20], addr: &str) -> 
     log::debug!("{}: Received peer id:{:?}", &addr, &buf[..PEER_ID.len()],);
 
     Ok(())
+}
+
+impl Message {
+    fn size(&self) -> u32 {
+        match &self {
+            Message::Choke => 0,
+            Message::Unchoke => 0,
+            Message::Interested => 0,
+            Message::NotInterested => 0,
+            Message::Have(_) => 4,
+            Message::Bitfield(bytes) => bytes.len() as u32,
+            Message::Request { .. } => 4 + 4 + 4,
+            Message::Piece { data, .. } => 4 + 4 + data.len() as u32,
+            Message::Cancel { .. } => 4 + 4 + 4,
+        }
+    }
+
+    fn to_bytes(&self, buf: &mut [u8]) {}
 }
 
 pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> Result<()> {

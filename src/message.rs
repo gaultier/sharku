@@ -44,20 +44,17 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn to_bytes(&self, buf: &mut Vec<u8>) -> Result<()> {
-        match self {
-            &Message::Request {
-                begin,
-                index,
-                length,
-            } => {
-                WriteBytesExt::write_u8(buf, MessageKind::Request as u8)?;
-                WriteBytesExt::write_u32::<BigEndian>(buf, index)?;
-                WriteBytesExt::write_u32::<BigEndian>(buf, begin)?;
-                WriteBytesExt::write_u32::<BigEndian>(buf, length)?;
-            }
-            _ => todo!(),
-        };
-        Ok(())
+    pub fn tag(&self) -> MessageKind {
+        match &self {
+            Message::Choke => MessageKind::Choke,
+            Message::Unchoke => MessageKind::Unchoke,
+            Message::Interested => MessageKind::Interested,
+            Message::NotInterested => MessageKind::NotInterested,
+            Message::Have(_) => MessageKind::Have,
+            Message::Bitfield(_) => MessageKind::Bitfield,
+            Message::Request { .. } => MessageKind::Request,
+            Message::Piece { .. } => MessageKind::Piece,
+            Message::Cancel { .. } => MessageKind::Cancel,
+        }
     }
 }
