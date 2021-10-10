@@ -1,6 +1,7 @@
 use crate::message::*;
 use crate::tracker::Peer;
 use anyhow::{Context, Result};
+use bit_vec::BitVec;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::convert::TryInto;
 use std::io::Cursor;
@@ -89,7 +90,7 @@ impl Message {
                 WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *piece)?;
             }
             Message::Bitfield(bytes) => {
-                std::io::Write::write_all(&mut cursor, bytes)?;
+                std::io::Write::write_all(&mut cursor, &bytes.to_bytes())?;
             }
             Message::Request {
                 index,
@@ -214,7 +215,9 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
                 &mut cursor,
             )?))
         }
-        [k, ..] if *k == MessageKind::Bitfield as u8 => Ok(Message::Bitfield(buf[1..].into())),
+        [k, ..] if *k == MessageKind::Bitfield as u8 => {
+            Ok(Message::Bitfield(BitVec::from_bytes(&buf[1..])))
+        }
         [k, ..] if *k == MessageKind::Request as u8 => {
             let mut cursor = Cursor::new(&buf[1..]); // Skip tag
             Ok(Message::Request {
@@ -252,11 +255,18 @@ mod tests {
     use crate::{message::Message, message::MessageKind, net::parse_message};
 
     #[test]
-    fn parse_message_bitfield() {
-        assert_eq!(
-            parse_message(&mut [MessageKind::Bitfield as u8, 1, 2, 3]).unwrap(),
-            Message::Bitfield(vec![1, 2, 3])
-        );
+    fn parse_message_bitfield() -> Result<(), String> {
+        match parse_message(&mut [MessageKind::Bitfield as u8, 0b0000_0001, 0b1000_0010]) {
+            Ok(Message::Bitfield(bytes))
+                if bytes.eq_vec(&[
+                    false, false, false, false, false, false, false, true, true, false, false,
+                    false, false, false, true, false,
+                ]) =>
+            {
+                Ok(())
+            }
+            other => Err(format!("Got {:#?}", other)),
+        }
     }
 
     #[test]
