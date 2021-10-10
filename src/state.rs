@@ -1,4 +1,3 @@
-
 pub struct DownloadState {
     pub uploaded: usize,
     pub downloaded: usize,
@@ -14,4 +13,3 @@ impl DownloadState {
         }
     }
 }
-
