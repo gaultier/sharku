@@ -8,6 +8,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::sync::broadcast::Receiver;
 use tokio::sync::broadcast::Sender;
 
 const MAX_MESSAGE_LEN: usize = BLOCK_LENGTH as usize + 1 + 4 + 4;
@@ -120,7 +121,12 @@ impl Message {
     }
 }
 
-pub async fn peer_talk(info_hash: [u8; 20], addr: Arc<String>, tx: Sender<Message>) -> Result<()> {
+pub async fn peer_talk(
+    info_hash: [u8; 20],
+    addr: Arc<String>,
+    rx: &mut Receiver<Message>,
+    tx: &mut Sender<Message>,
+) -> Result<()> {
     log::debug!("{}: Trying to connect", &addr);
     let mut socket = TcpStream::connect(addr.deref()).await?;
     log::debug!("{}: Connected", &addr);

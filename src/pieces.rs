@@ -11,14 +11,18 @@ pub struct Pieces {
 }
 
 impl Pieces {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Pieces {
             have_pieces: BitVec::new(),
             have_chunks: BitVec::new(),
         }
     }
 
-    async fn run(rx: &mut Receiver<Message>, tx: Sender<Message>) -> Result<()> {
+    pub async fn run(
+        &mut self,
+        rx: &mut Receiver<Message>,
+        tx: &mut Sender<Message>,
+    ) -> Result<()> {
         loop {
             match rx.recv().await? {
                 msg => {
