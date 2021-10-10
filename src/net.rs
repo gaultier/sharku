@@ -200,9 +200,9 @@ pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> R
 }
 
 fn parse_message(buf: &mut [u8]) -> Result<Message> {
-    assert!(buf.len() > 0);
+    assert!(!buf.is_empty());
     assert!(buf.len() < MAX_MESSAGE_LEN);
-    match buf.as_mut() {
+    match buf {
         [] => unreachable!(),
         [k, ..] if *k == MessageKind::Choke as u8 => Ok(Message::Choke),
         [k, ..] if *k == MessageKind::Unchoke as u8 => Ok(Message::Unchoke),
