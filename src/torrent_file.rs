@@ -11,7 +11,7 @@ pub struct Node(String, i64);
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct File {
-    path: Vec<String>,
+    pub path: Vec<String>,
     length: i64,
     md5sum: Option<String>,
 }
@@ -24,7 +24,7 @@ pub struct Info {
     piece_length: i64,
     md5sum: Option<String>,
     pub length: Option<i64>,
-    files: Option<Vec<File>>,
+    pub files: Option<Vec<File>>,
     private: Option<u8>,
     path: Option<Vec<String>>,
     #[serde(rename = "root hash")]

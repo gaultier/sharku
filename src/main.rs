@@ -1,3 +1,4 @@
+use sharku::fs::*;
 use sharku::net::*;
 use sharku::torrent_file::*;
 use sharku::tracker::*;
@@ -11,6 +12,18 @@ async fn main() -> Result<()> {
     env_logger::init();
     let torrent_file_path = PathBuf::from("debian.torrent");
     let torrent = decode_torrent_from_file(&torrent_file_path)?;
+    let files = &torrent.info.files;
+    if files.is_none() || files.as_ref().map(|files| files.len()).unwrap_or(0) != 1 {
+        anyhow::bail!("Expected exactly one file, got: {:?}", files);
+    }
+    let files = files.as_ref().unwrap();
+    let file = &files[0];
+    if file.path.len() != 1 {
+        anyhow::bail!("Expected exactly one path, got: {:?}", file.path);
+    }
+    let file_path = &file.path[0];
+    let file_path = PathBuf::from(file_path);
+    let _f = open(&file_path)?;
 
     let client = reqwest::Client::new();
     let download_state = DownloadState {
