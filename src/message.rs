@@ -1,6 +1,3 @@
-use anyhow::Result;
-use byteorder::{BigEndian, WriteBytesExt};
-
 pub const PEER_ID: &[u8; 20] = b"unpetitnuagebleuvert";
 pub const HANDSHAKE: &[u8; 28] = b"\x13BitTorrent protocol\x00\x00\x00\x00\x00\x00\x00\x00";
 pub const BLOCK_LENGTH: u32 = 16384;

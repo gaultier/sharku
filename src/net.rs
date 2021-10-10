@@ -69,10 +69,7 @@ async fn handshake(socket: &mut TcpStream, info_hash: &[u8; 20], addr: &str) -> 
 impl Message {
     fn size(&self) -> u32 {
         match &self {
-            Message::Choke => 0,
-            Message::Unchoke => 0,
-            Message::Interested => 0,
-            Message::NotInterested => 0,
+            Message::Choke | Message::Unchoke | Message::Interested | Message::NotInterested => 0,
             Message::Have(_) => 4,
             Message::Bitfield(bytes) => bytes.len() as u32,
             Message::Request { .. } => 4 + 4 + 4,
@@ -81,7 +78,45 @@ impl Message {
         }
     }
 
-    fn to_bytes(&self, buf: &mut [u8]) {}
+    fn write(&self, buf: &mut [u8]) -> Result<()> {
+        let mut cursor = Cursor::new(buf);
+        WriteBytesExt::write_u32::<BigEndian>(&mut cursor, self.size())?;
+        WriteBytesExt::write_u8(&mut cursor, self.tag() as u8)?;
+
+        match &self {
+            Message::Choke | Message::Unchoke | Message::Interested | Message::NotInterested => {}
+            Message::Have(piece) => {
+                WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *piece)?;
+            }
+            Message::Bitfield(bytes) => {
+                std::io::Write::write_all(&mut cursor, bytes)?;
+            }
+            Message::Request {
+                index,
+                begin,
+                length,
+            } => {
+                WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *index)?;
+                WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *begin)?;
+                WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *length)?;
+            }
+            Message::Piece { index, begin, data } => {
+                WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *index)?;
+                WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *begin)?;
+                std::io::Write::write_all(&mut cursor, data)?;
+            }
+            Message::Cancel {
+                index,
+                begin,
+                length,
+            } => {
+                WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *index)?;
+                WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *begin)?;
+                WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *length)?;
+            }
+        };
+        Ok(())
+    }
 }
 
 pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> Result<()> {
@@ -92,45 +127,45 @@ pub async fn peer_talk(_peer: Peer, info_hash: [u8; 20], addr: Arc<String>) -> R
     handshake(&mut socket, &info_hash, &addr).await?;
 
     // Interested
+    let mut buf_writer = vec![0; MAX_MESSAGE_LEN];
+    Message::Interested
+        .write(&mut buf_writer)
+        .with_context(|| "Failed to serialize Message::Interested")?;
+
     socket
-        .write_all(&u32::to_be_bytes(1))
+        .write_all(&buf_writer)
         .await
-        .with_context(|| "Failed to write size")?;
-    socket
-        .write_all(&[MessageKind::Interested as u8])
-        .await
-        .with_context(|| "Failed to write Interested")?;
-    log::debug!("{}: Sent interested", &addr);
+        .with_context(|| "Failed to send Message::Interested")?;
+    log::debug!("{}: Sent Message::Interested", &addr);
 
     // Choke
+    Message::Choke
+        .write(&mut buf_writer)
+        .with_context(|| "Failed to serialize Message::Choke")?;
+
     socket
-        .write_all(&u32::to_be_bytes(1))
+        .write_all(&buf_writer)
         .await
-        .with_context(|| "Failed to write size")?;
-    socket
-        .write_all(&[MessageKind::Choke as u8])
-        .await
-        .with_context(|| "Failed to write Choke")?;
-    log::debug!("{}: Sent choke", &addr);
+        .with_context(|| "Failed to send Message::Choke")?;
+    log::debug!("{}: Sent Message::Choke", &addr);
 
     let (mut rd, mut wr) = io::split(socket);
 
     let addr_writer = addr.clone();
     let _write_task = tokio::spawn(async move {
-        let mut buf = vec![0; 1024];
         let msg = Message::Request {
             index: 0,
             begin: 0,
             length: BLOCK_LENGTH,
         };
-        WriteBytesExt::write_u32::<BigEndian>(&mut buf, 1 + 4 * 3)?;
-        msg.to_bytes(&mut buf)
-            .with_context(|| format!("{}: Failed to write request", addr_writer))?;
+        msg.write(&mut buf_writer)
+            .with_context(|| "Failed to serialize Message::Request")?;
 
-        wr.write_all(&buf)
+        wr.write_all(&buf_writer)
             .await
-            .with_context(|| "Failed to write request to peer")?;
-        log::debug!("{}: Sent request", addr_writer);
+            .with_context(|| "Failed to send Message::Request")?;
+        log::debug!("{}: Sent Message::Request", &addr_writer);
+
         Ok::<_, anyhow::Error>(())
     });
 
