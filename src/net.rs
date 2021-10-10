@@ -209,18 +209,14 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
         [k, ..] if *k == MessageKind::Interested as u8 => Ok(Message::Interested),
         [k, ..] if *k == MessageKind::NotInterested as u8 => Ok(Message::NotInterested),
         [k, ..] if *k == MessageKind::Have as u8 => {
-            let mut cursor = Cursor::new(buf);
-            // Tag
-            ReadBytesExt::read_u8(&mut cursor)?;
+            let mut cursor = Cursor::new(&buf[1..]); // Skip tag
             Ok(Message::Have(ReadBytesExt::read_u32::<BigEndian>(
                 &mut cursor,
             )?))
         }
         [k, ..] if *k == MessageKind::Bitfield as u8 => Ok(Message::Bitfield(buf[1..].into())),
         [k, ..] if *k == MessageKind::Request as u8 => {
-            let mut cursor = Cursor::new(buf);
-            // Tag
-            ReadBytesExt::read_u8(&mut cursor)?;
+            let mut cursor = Cursor::new(&buf[1..]); // Skip tag
             Ok(Message::Request {
                 index: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
                 begin: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
@@ -229,9 +225,7 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
         }
         [k, ..] if *k == MessageKind::Piece as u8 => {
             let len = buf.len();
-            let mut cursor = Cursor::new(buf);
-            // Tag
-            ReadBytesExt::read_u8(&mut cursor)?;
+            let mut cursor = Cursor::new(&buf[1..]); // Skip tag
             let index = ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?;
             let begin = ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?;
             let position = cursor.position().min(len as u64) as usize;
@@ -242,8 +236,7 @@ fn parse_message(buf: &mut [u8]) -> Result<Message> {
             })
         }
         [k, ..] if *k == MessageKind::Cancel as u8 => {
-            let mut cursor = Cursor::new(buf);
-            ReadBytesExt::read_u8(&mut cursor)?;
+            let mut cursor = Cursor::new(&buf[1..]); // Skip tag
             Ok(Message::Cancel {
                 index: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
                 begin: ReadBytesExt::read_u32::<BigEndian>(&mut cursor)?,
