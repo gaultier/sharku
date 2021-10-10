@@ -70,12 +70,12 @@ async fn handshake(socket: &mut TcpStream, info_hash: &[u8; 20], addr: &str) -> 
 impl Message {
     fn size(&self) -> u32 {
         match &self {
-            Message::Choke | Message::Unchoke | Message::Interested | Message::NotInterested => 0,
             Message::Have(_) => 4,
             Message::Bitfield(bytes) => bytes.len() as u32,
             Message::Request { .. } => 4 + 4 + 4,
             Message::Piece { data, .. } => 4 + 4 + data.len() as u32,
             Message::Cancel { .. } => 4 + 4 + 4,
+            _ => 0,
         }
     }
 
