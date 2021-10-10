@@ -57,3 +57,9 @@ impl Message {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Event {
+    pub peer_id: usize,
+    pub message: Message,
+}

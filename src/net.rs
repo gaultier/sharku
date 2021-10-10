@@ -122,10 +122,11 @@ impl Message {
 }
 
 pub async fn peer_talk(
+    peer_id: usize,
     info_hash: [u8; 20],
     addr: Arc<String>,
-    rx: &mut Receiver<Message>,
-    tx: &mut Sender<Message>,
+    _rx: &mut Receiver<Event>,
+    tx: &mut Sender<Event>,
 ) -> Result<()> {
     log::debug!("{}: Trying to connect", &addr);
     let mut socket = TcpStream::connect(addr.deref()).await?;
@@ -201,9 +202,10 @@ pub async fn peer_talk(
         rd.read_exact(&mut buf[..advisory_length])
             .await
             .with_context(|| "Failed to read from peer")?;
-        let msg = parse_message(&mut buf[..advisory_length])?;
-        log::debug!("{}: msg={:?}", &addr, &msg);
-        tx.send(msg).with_context(|| "Failed to send message")?;
+        let message = parse_message(&mut buf[..advisory_length])?;
+        log::debug!("{}: msg={:?}", &addr, &message);
+        let event = Event { message, peer_id };
+        tx.send(event).with_context(|| "Failed to send message")?;
     }
 }
 

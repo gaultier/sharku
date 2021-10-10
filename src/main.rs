@@ -36,21 +36,20 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to start download with tracker")?;
 
-    let (tx, mut rx) = broadcast::channel(100);
+    let (tx_peer_pieces, mut rx_peers_pieces) = broadcast::channel(100);
     let mut pieces = Pieces::new();
-    let mut tx_pieces = tx.clone();
     tokio::spawn(async move {
-        let _ = pieces.run(&mut rx, &mut tx_pieces).await.map_err(|err| {
+        let _ = pieces.run(&mut rx_peers_pieces).await.map_err(|err| {
             log::warn!("Pieces: Err: {}", err);
         });
     });
     // FIXME
-    for peer in peers.into_iter().take(4) {
-        let mut rx_peer = tx.subscribe();
-        let mut tx_peer = tx.clone();
+    for (i, peer) in peers.into_iter().take(4).enumerate() {
+        let mut rx_peer = tx_peer_pieces.subscribe();
+        let mut tx_peer = tx_peer_pieces.clone();
         tokio::spawn(async move {
             let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
-            let _ = peer_talk(info_hash, addr.clone(), &mut rx_peer, &mut tx_peer)
+            let _ = peer_talk(i, info_hash, addr.clone(), &mut rx_peer, &mut tx_peer)
                 .await
                 .map_err(|err| {
                     log::warn!("{}: Err: {}", &addr, err);
