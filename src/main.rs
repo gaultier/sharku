@@ -5,6 +5,7 @@ use sharku::state::*;
 use sharku::torrent_file::*;
 use sharku::tracker::*;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 use anyhow::{Context, Result};
 use std::path::PathBuf;
@@ -36,11 +37,14 @@ async fn main() -> Result<()> {
 
     // FIXME
     for peer in peers.into_iter().take(4) {
+        let (tx_peer_to_pieces, mut rx_peer_to_pieces) = mpsc::channel(32);
         tokio::spawn(async move {
             let addr = Arc::new(format!("{}:{}", peer.ip, peer.port));
-            let _ = peer_talk(info_hash, addr.clone()).await.map_err(|err| {
-                log::warn!("{}: Err: {}", &addr, err);
-            });
+            let _ = peer_talk(info_hash, addr.clone(), tx_peer_to_pieces)
+                .await
+                .map_err(|err| {
+                    log::warn!("{}: Err: {}", &addr, err);
+                });
         });
     }
     let notify = tokio::sync::Notify::new();
