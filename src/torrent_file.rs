@@ -18,7 +18,7 @@ pub struct File {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Info {
-    name: String,
+    pub name: String,
     pieces: ByteBuf,
     #[serde(rename = "piece length")]
     piece_length: i64,
