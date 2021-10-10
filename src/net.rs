@@ -85,7 +85,6 @@ impl Message {
         WriteBytesExt::write_u8(&mut cursor, self.tag() as u8)?;
 
         match &self {
-            Message::Choke | Message::Unchoke | Message::Interested | Message::NotInterested => {}
             Message::Have(piece) => {
                 WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *piece)?;
             }
@@ -115,6 +114,7 @@ impl Message {
                 WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *begin)?;
                 WriteBytesExt::write_u32::<BigEndian>(&mut cursor, *length)?;
             }
+            _ => {}
         };
         Ok(())
     }
