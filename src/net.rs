@@ -161,19 +161,20 @@ pub async fn peer_talk(
 
     let addr_writer = addr.clone();
     tokio::spawn(async move {
-        // loop {
-        let msg = rx.recv().await.with_context(|| "Failed to recv message")?;
+        loop {
+            let msg = rx.recv().await.with_context(|| "Failed to recv message")?;
 
-        msg.message
-            .write(&mut buf_writer)
-            .with_context(|| "Failed to serialize message")?;
+            msg.message
+                .write(&mut buf_writer)
+                .with_context(|| "Failed to serialize message")?;
 
-        wr.write_all(&buf_writer)
-            .await
-            .with_context(|| "Failed to send message")?;
-        log::debug!("{}: Sent message", &addr_writer);
-        // }
-        Ok::<_, anyhow::Error>(())
+            wr.write_all(&buf_writer)
+                .await
+                .with_context(|| "Failed to send message")?;
+            log::debug!("{}: Sent message", &addr_writer);
+        }
+        #[allow(unreachable_code)]
+        Ok::<_, anyhow::Error>(()) // Needed for type inference
     });
 
     let mut buf = vec![0; MAX_MESSAGE_LEN];
