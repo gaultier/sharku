@@ -125,7 +125,7 @@ pub async fn peer_talk(
     peer_id: usize,
     info_hash: [u8; 20],
     addr: Arc<String>,
-    _rx: &mut Receiver<Event>,
+    mut rx: Receiver<Event>,
     tx: &mut Sender<Event>,
 ) -> Result<()> {
     log::debug!("{}: Trying to connect", &addr);
@@ -160,20 +160,19 @@ pub async fn peer_talk(
     let (mut rd, mut wr) = io::split(socket);
 
     let addr_writer = addr.clone();
-    let _write_task = tokio::spawn(async move {
-        let msg = Message::Request {
-            index: 0,
-            begin: 0,
-            length: BLOCK_LENGTH,
-        };
-        msg.write(&mut buf_writer)
-            .with_context(|| "Failed to serialize Message::Request")?;
+    tokio::spawn(async move {
+        // loop {
+        let msg = rx.recv().await.with_context(|| "Failed to recv message")?;
+
+        msg.message
+            .write(&mut buf_writer)
+            .with_context(|| "Failed to serialize message")?;
 
         wr.write_all(&buf_writer)
             .await
-            .with_context(|| "Failed to send Message::Request")?;
-        log::debug!("{}: Sent Message::Request", &addr_writer);
-
+            .with_context(|| "Failed to send message")?;
+        log::debug!("{}: Sent message", &addr_writer);
+        // }
         Ok::<_, anyhow::Error>(())
     });
 

@@ -1,8 +1,10 @@
 use anyhow::*;
 use bit_vec::BitVec;
 use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast::Sender;
 
-use crate::message::Event;
+use crate::message::BLOCK_LENGTH;
+use crate::message::{Event, Message};
 
 pub struct Pieces {
     have_pieces: BitVec,
@@ -17,7 +19,17 @@ impl Pieces {
         }
     }
 
-    pub async fn run(&mut self, rx: &mut Receiver<Event>) -> Result<()> {
+    pub async fn run(&mut self, tx: &mut Sender<Event>, rx: &mut Receiver<Event>) -> Result<()> {
+        tx.send(Event {
+            peer_id: 3,
+            message: Message::Request {
+                index: 0,
+                begin: 0,
+                length: BLOCK_LENGTH,
+            },
+        })
+        .with_context(|| "Pieces: Failed to send message")?;
+
         loop {
             match rx
                 .recv()
