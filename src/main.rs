@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
             });
     });
     // FIXME
-    for (i, peer) in peers.into_iter().take(4).enumerate() {
+    for (i, peer) in peers.into_iter().take(8).enumerate() {
         let rx_peer = tx_peer_pieces.subscribe();
         let mut tx_peer = tx_peer_pieces.clone();
         tokio::spawn(async move {

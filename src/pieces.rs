@@ -20,24 +20,22 @@ impl Pieces {
     }
 
     pub async fn run(&mut self, tx: &mut Sender<Event>, rx: &mut Receiver<Event>) -> Result<()> {
-        tx.send(Event {
-            peer_id: 3,
-            message: Message::Request {
-                index: 0,
-                begin: 0,
-                length: BLOCK_LENGTH,
-            },
-        })
-        .with_context(|| "Pieces: Failed to send message")?;
+        for i in 0..5 {
+            tx.send(Event {
+                peer_id: 3,
+                message: Message::Request {
+                    index: i,
+                    begin: 0,
+                    length: BLOCK_LENGTH,
+                },
+            })
+            .with_context(|| "Failed to send message")?;
+        }
 
         loop {
-            match rx
-                .recv()
-                .await
-                .with_context(|| "Pieces: Failed to recv message")?
-            {
+            match rx.recv().await.with_context(|| "Failed to recv message")? {
                 msg => {
-                    log::debug!("Pieces: msg={:#?}", &msg);
+                    log::debug!("msg={:#?}", &msg);
                 }
             }
         }
