@@ -16,6 +16,9 @@ async fn main() -> Result<()> {
     env_logger::init();
     let torrent_file_path = PathBuf::from("debian.torrent");
     let torrent = Arc::from(decode_torrent_from_file(&torrent_file_path)?);
+    log::debug!("Torrent: {:#?}", torrent);
+    return Ok(());
+
     let file_path = PathBuf::from(&torrent.info.name);
 
     let file_length: u64 = match torrent.info.length {

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use serde_bencode::de;
 use serde_bytes::ByteBuf;
@@ -16,12 +17,15 @@ pub struct File {
     md5sum: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Derivative)]
+#[derivative(Debug)]
+#[derive(Deserialize, Serialize)]
 pub struct Info {
     pub name: String,
+    #[derivative(Debug = "ignore")]
     pieces: ByteBuf,
     #[serde(rename = "piece length")]
-    piece_length: u32,
+    pub piece_length: u32,
     md5sum: Option<String>,
     pub length: Option<usize>,
     pub files: Option<Vec<File>>,
@@ -43,16 +47,16 @@ impl Info {
 mod tests {
     use serde_bytes::ByteBuf;
 
-    use crate::{message::BLOCK_LENGTH, torrent_file::Info};
+    use crate::torrent_file::Info;
 
     #[test]
     fn compute_pieces_count() {
         let info = Info {
             name: String::new(),
             pieces: ByteBuf::new(),
-            piece_length: BLOCK_LENGTH,
+            piece_length: 262144,
             md5sum: None,
-            length: Some(3 * BLOCK_LENGTH as usize + 1),
+            length: Some(395313152),
             files: None,
             private: None,
             path: None,
