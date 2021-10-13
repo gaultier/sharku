@@ -39,7 +39,13 @@ impl Info {
     pub fn pieces_count(&self) -> usize {
         assert!(self.piece_length > 0);
         // Div ceil
-        (self.length.unwrap_or(0) + self.piece_length as usize - 1) / self.piece_length as usize
+        let piece_length = self.piece_length as usize;
+        let length = self.length.unwrap_or(0);
+        // Div ceil
+        let pieces_count = (length + piece_length - 1) / piece_length;
+        // Pad remaining bits of the last byte
+        let res = (pieces_count + 8 - 1) / 8;
+        res * 8
     }
 }
 
@@ -62,7 +68,7 @@ mod tests {
             path: None,
             root_hash: None,
         };
-        assert_eq!(info.pieces_count(), 4);
+        assert_eq!(info.pieces_count(), 1512);
     }
 }
 
