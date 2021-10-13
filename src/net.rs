@@ -178,6 +178,8 @@ pub async fn peer_talk(
     });
 
     let mut buf = vec![0; MAX_MESSAGE_LEN];
+    let mut choked = true;
+    let mut interested = false;
     loop {
         rd.read_exact(&mut buf[..4])
             .await
@@ -204,8 +206,25 @@ pub async fn peer_talk(
             .with_context(|| "Failed to read from peer")?;
         let message = parse_message(&mut buf[..advisory_length])?;
         log::debug!("{}: msg={:?}", &addr, &message);
-        let event = Event { message, peer_id };
-        tx.send(event).with_context(|| "Failed to send message")?;
+
+        match &message {
+            Message::Choke => {
+                choked = true;
+            }
+            Message::Unchoke => {
+                choked = false;
+            }
+            Message::Interested => {
+                interested = true;
+            }
+            Message::NotInterested => {
+                interested = false;
+            }
+            _ => {
+                let event = Event { message, peer_id };
+                tx.send(event).with_context(|| "Failed to send message")?;
+            }
+        }
     }
 }
 
