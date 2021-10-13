@@ -180,6 +180,7 @@ pub async fn peer_talk(
     });
 
     let mut buf = vec![0; MAX_MESSAGE_LEN];
+    // TODO: expose this state to the write coroutine
     let mut choked = true;
     let mut interested = false;
     let mut have = None;
