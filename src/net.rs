@@ -182,7 +182,7 @@ pub async fn peer_talk(
     let mut buf = vec![0; MAX_MESSAGE_LEN];
     let mut choked = true;
     let mut interested = false;
-    let mut have = bit_vec::BitVec::from_elem(torrent.info.pieces_len(), false);
+    let mut have = None;
     loop {
         rd.read_exact(&mut buf[..4])
             .await
@@ -210,7 +210,7 @@ pub async fn peer_talk(
         let message = parse_message(&mut buf[..advisory_length])?;
         log::debug!("{}: msg={:?}", &addr, &message);
 
-        match &message {
+        match message {
             Message::Choke => {
                 choked = true;
             }
@@ -224,14 +224,14 @@ pub async fn peer_talk(
                 interested = false;
             }
             Message::Bitfield(bytes) => {
-                if bytes.len() != have.len() {
+                if bytes.len() != torrent.info.pieces_count() {
                     anyhow::bail!(
                         "Invalid Message::Bitfield, wrong length: expected={} got={}",
-                        have.len(),
+                        torrent.info.pieces_count(),
                         bytes.len()
                     );
                 }
-                have.or(&bytes);
+                have = Some(bytes);
             }
             _ => {
                 let event = Event { message, peer_id };

@@ -32,7 +32,7 @@ pub struct Info {
 }
 
 impl Info {
-    pub fn pieces_len(&self) -> usize {
+    pub fn pieces_count(&self) -> usize {
         assert!(self.piece_length > 0);
         // Div ceil
         (self.length.unwrap_or(0) + self.piece_length as usize - 1) / self.piece_length as usize
@@ -46,7 +46,7 @@ mod tests {
     use crate::{message::BLOCK_LENGTH, torrent_file::Info};
 
     #[test]
-    fn compute_pieces_len() {
+    fn compute_pieces_count() {
         let info = Info {
             name: String::new(),
             pieces: ByteBuf::new(),
@@ -58,7 +58,7 @@ mod tests {
             path: None,
             root_hash: None,
         };
-        assert_eq!(info.pieces_len(), 4);
+        assert_eq!(info.pieces_count(), 4);
     }
 }
 
