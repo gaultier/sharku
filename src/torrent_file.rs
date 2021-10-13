@@ -21,14 +21,21 @@ pub struct Info {
     pub name: String,
     pieces: ByteBuf,
     #[serde(rename = "piece length")]
-    piece_length: i64,
+    piece_length: usize,
     md5sum: Option<String>,
-    pub length: Option<i64>,
+    pub length: Option<usize>,
     pub files: Option<Vec<File>>,
     private: Option<u8>,
     path: Option<Vec<String>>,
     #[serde(rename = "root hash")]
     root_hash: Option<String>,
+}
+
+impl Info {
+    pub fn pieces_len(&self) -> usize {
+        assert!(self.piece_length > 0);
+        self.pieces.len() / self.piece_length
+    }
 }
 
 #[derive(Debug, Deserialize)]

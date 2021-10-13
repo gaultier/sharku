@@ -1,4 +1,5 @@
 use crate::message::*;
+use crate::torrent_file::*;
 use anyhow::{Context, Result};
 use bit_vec::BitVec;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -122,6 +123,7 @@ impl Message {
 }
 
 pub async fn peer_talk(
+    torrent: Arc<Torrent>,
     peer_id: usize,
     info_hash: [u8; 20],
     addr: Arc<String>,
@@ -180,6 +182,7 @@ pub async fn peer_talk(
     let mut buf = vec![0; MAX_MESSAGE_LEN];
     let mut choked = true;
     let mut interested = false;
+    let mut have = bit_vec::BitVec::from_elem(torrent.info.pieces_len(), false);
     loop {
         rd.read_exact(&mut buf[..4])
             .await
@@ -220,11 +223,14 @@ pub async fn peer_talk(
             Message::NotInterested => {
                 interested = false;
             }
+            Message::Bitfield(bytes) => {
+                have.or(&bytes);
+            }
             _ => {
                 let event = Event { message, peer_id };
                 tx.send(event).with_context(|| "Failed to send message")?;
             }
-        }
+        };
     }
 }
 
