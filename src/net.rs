@@ -224,6 +224,13 @@ pub async fn peer_talk(
                 interested = false;
             }
             Message::Bitfield(bytes) => {
+                if bytes.len() != have.len() {
+                    anyhow::bail!(
+                        "Invalid Message::Bitfield, wrong length: expected={} got={}",
+                        have.len(),
+                        bytes.len()
+                    );
+                }
                 have.or(&bytes);
             }
             _ => {

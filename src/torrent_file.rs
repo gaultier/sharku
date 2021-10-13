@@ -21,7 +21,7 @@ pub struct Info {
     pub name: String,
     pieces: ByteBuf,
     #[serde(rename = "piece length")]
-    piece_length: usize,
+    piece_length: u32,
     md5sum: Option<String>,
     pub length: Option<usize>,
     pub files: Option<Vec<File>>,
@@ -34,7 +34,31 @@ pub struct Info {
 impl Info {
     pub fn pieces_len(&self) -> usize {
         assert!(self.piece_length > 0);
-        self.pieces.len() / self.piece_length
+        // Div ceil
+        (self.length.unwrap_or(0) + self.piece_length as usize - 1) / self.piece_length as usize
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_bytes::ByteBuf;
+
+    use crate::{message::BLOCK_LENGTH, torrent_file::Info};
+
+    #[test]
+    fn compute_pieces_len() {
+        let info = Info {
+            name: String::new(),
+            pieces: ByteBuf::new(),
+            piece_length: BLOCK_LENGTH,
+            md5sum: None,
+            length: Some(3 * BLOCK_LENGTH as usize + 1),
+            files: None,
+            private: None,
+            path: None,
+            root_hash: None,
+        };
+        assert_eq!(info.pieces_len(), 4);
     }
 }
 
