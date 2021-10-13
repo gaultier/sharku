@@ -173,7 +173,7 @@ pub async fn peer_talk(
             wr.write_all(&buf_writer)
                 .await
                 .with_context(|| "Failed to send message")?;
-            log::debug!("{}: Sent message", &addr_writer);
+            log::debug!("{}: Sent message {:?}", &addr_writer, &msg);
         }
         #[allow(unreachable_code)]
         Ok::<_, anyhow::Error>(()) // Needed for type inference
