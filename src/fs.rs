@@ -26,12 +26,12 @@ impl Handler<M> for FileActor {
     fn handle(&mut self, msg: M, _: &mut Context<Self>) -> Self::Result {
         println!("Msg={:?}", msg);
         match msg {
-            M::Piece {
-                index: _index,
-                begin: _begin,
-                data: _data,
-            } => {
-                todo!()
+            M::Piece { index, begin, data } => {
+                // TODO: checks
+
+                let start = index as usize * self.piece_length as usize + begin as usize;
+                let end = start as usize + data.len();
+                self.mmap[start..end].copy_from_slice(data.as_slice());
             }
             _ => todo!(),
         }
