@@ -1,3 +1,4 @@
+use actix::prelude::*;
 use anyhow::bail;
 use sharku::fs::*;
 use sharku::net::*;
@@ -11,7 +12,7 @@ use tokio::sync::broadcast;
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 
-#[tokio::main]
+#[actix::main]
 async fn main() -> Result<()> {
     env_logger::init();
     let torrent_file_path = PathBuf::from("debian.torrent");
@@ -25,7 +26,8 @@ async fn main() -> Result<()> {
         None => bail!("Missing file length in torrent file"),
     };
 
-    let _file_actor = FileActor::new(&file_path, file_length, torrent.info.piece_length)?;
+    let _file_actor_addr =
+        FileActor::new(&file_path, file_length, torrent.info.piece_length)?.start();
 
     let client = reqwest::Client::new();
     let download_state = DownloadState {
