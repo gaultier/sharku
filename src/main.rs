@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
         None => bail!("Missing file length in torrent file"),
     };
 
-    let _f = open(&file_path, file_length)?;
+    let _file_actor = FileActor::new(&file_path, file_length, torrent.info.piece_length)?;
 
     let client = reqwest::Client::new();
     let download_state = DownloadState {
