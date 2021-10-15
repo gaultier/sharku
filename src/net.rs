@@ -127,8 +127,6 @@ pub async fn peer_talk(
     peer_id: usize,
     info_hash: [u8; 20],
     addr: Arc<String>,
-    mut rx: Receiver<Event>,
-    tx: &mut Sender<Event>,
 ) -> Result<()> {
     log::debug!("{}: Trying to connect", &addr);
     let mut socket = TcpStream::connect(addr.deref()).await?;
@@ -164,16 +162,16 @@ pub async fn peer_talk(
     let addr_writer = addr.clone();
     tokio::spawn(async move {
         loop {
-            let msg = rx.recv().await.with_context(|| "Failed to recv message")?;
+            todo!();
 
-            msg.message
-                .write(&mut buf_writer)
-                .with_context(|| "Failed to serialize message")?;
+            // msg.message
+            //     .write(&mut buf_writer)
+            //     .with_context(|| "Failed to serialize message")?;
 
-            wr.write_all(&buf_writer)
-                .await
-                .with_context(|| "Failed to send message")?;
-            log::debug!("{}: Sent message {:?}", &addr_writer, &msg);
+            // wr.write_all(&buf_writer)
+            //     .await
+            //     .with_context(|| "Failed to send message")?;
+            // log::debug!("{}: Sent message {:?}", &addr_writer, &msg);
         }
         #[allow(unreachable_code)]
         Ok::<_, anyhow::Error>(()) // Needed for type inference
@@ -236,7 +234,7 @@ pub async fn peer_talk(
             }
             _ => {
                 let event = Event { message, peer_id };
-                tx.send(event).with_context(|| "Failed to send message")?;
+                todo!();
             }
         };
     }

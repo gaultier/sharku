@@ -18,26 +18,4 @@ impl Pieces {
             have_chunks: BitVec::new(),
         }
     }
-
-    pub async fn run(&mut self, tx: &mut Sender<Event>, rx: &mut Receiver<Event>) -> Result<()> {
-        for i in 0..5 {
-            tx.send(Event {
-                peer_id: 3,
-                message: Message::Request {
-                    index: i,
-                    begin: 0,
-                    length: BLOCK_LENGTH,
-                },
-            })
-            .with_context(|| "Failed to send message")?;
-        }
-
-        loop {
-            match rx.recv().await.with_context(|| "Failed to recv message")? {
-                msg => {
-                    log::debug!("msg={:#?}", &msg);
-                }
-            }
-        }
-    }
 }
