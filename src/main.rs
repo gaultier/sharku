@@ -2,12 +2,10 @@ use actix::prelude::*;
 use anyhow::bail;
 use sharku::fs::*;
 use sharku::net::*;
-use sharku::pieces::*;
 use sharku::state::*;
 use sharku::torrent_file::*;
 use sharku::tracker::*;
 use std::sync::Arc;
-use tokio::sync::broadcast;
 
 use anyhow::{Context, Result};
 use std::path::PathBuf;
@@ -15,6 +13,7 @@ use std::path::PathBuf;
 #[actix::main]
 async fn main() -> Result<()> {
     env_logger::init();
+
     let torrent_file_path = PathBuf::from("debian.torrent");
     let torrent = Arc::from(decode_torrent_from_file(&torrent_file_path)?);
     log::debug!("Torrent: {:#?}", torrent);
