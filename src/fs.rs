@@ -32,10 +32,10 @@ impl Handler<M> for FileActor {
                 let start = index as usize * self.piece_length as usize + begin as usize;
                 let end = start as usize + data.len();
                 self.mmap[start..end].copy_from_slice(data.as_slice());
-                self.mmap.flush().unwrap();
-                // let _ = self.mmap.flush_range(start, data.len()).unwrap();
-                // .map_err(|err| warn!("Failed to flush mmapped file: {}", err));
-                eprintln!("Flush ok");
+                let _ = self
+                    .mmap
+                    .flush_range(start, data.len())
+                    .map_err(|err| log::warn!("Failed to flush mmapped file: {}", err));
             }
             _ => todo!(),
         }
@@ -85,16 +85,22 @@ mod tests {
         fs::*,
         message::{Message, BLOCK_LENGTH},
     };
-    use std::path::PathBuf;
     use std::{env, io::Read};
     use std::{fs::File, io::Seek, io::SeekFrom};
+    use std::{path::PathBuf, time::Duration};
 
     #[actix::test]
     async fn file_should_be_written_to_on_piece_message() {
         let mut tmp_path = PathBuf::from(env::temp_dir());
         tmp_path.push("sharku_file_should_be_written_to_on_piece_message");
 
-        std::fs::remove_file(&tmp_path).unwrap();
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(&tmp_path)
+            .unwrap();
 
         let file_actor_addr = FileActor::new(&tmp_path, BLOCK_LENGTH as u64 * 2, BLOCK_LENGTH)
             .unwrap()
@@ -109,12 +115,16 @@ mod tests {
             })
             .unwrap();
 
-        sleep(std::time::Duration::from_secs(1)).await;
-        let mut buf: [u8; BLOCK_LENGTH as usize] = [0u8; BLOCK_LENGTH as usize];
-        let mut f = File::open(&tmp_path).unwrap();
-        f.seek(SeekFrom::Start(BLOCK_LENGTH as u64)).unwrap();
-        f.read_exact(&mut buf).unwrap();
-        assert_eq!(buf.len(), data.len());
-        assert_eq!(&buf, &data);
+        for _ in 1..=5 {
+            let mut buf: [u8; BLOCK_LENGTH as usize] = [0u8; BLOCK_LENGTH as usize];
+            let mut f = File::open(&tmp_path).unwrap();
+            f.seek(SeekFrom::Start(BLOCK_LENGTH as u64)).unwrap();
+            f.read_exact(&mut buf).unwrap();
+            if buf.len() == data.len() && &buf == &data {
+                return;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+        assert!(false);
     }
 }
