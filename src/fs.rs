@@ -11,7 +11,6 @@ impl Message for M {
 }
 
 pub struct FileActor {
-    file: std::fs::File,
     mmap: MmapMut,
     piece_length: u32,
 }
@@ -70,11 +69,7 @@ impl FileActor {
                 .with_context(|| format!("Failed to mmap: path={}", path.to_string_lossy()))?
         };
 
-        Ok(FileActor {
-            file,
-            piece_length,
-            mmap,
-        })
+        Ok(FileActor { piece_length, mmap })
     }
 }
 #[cfg(test)]
@@ -95,12 +90,12 @@ mod tests {
         tmp_path.push("sharku_file_should_be_written_to_on_piece_message");
 
         let file = OpenOptions::new()
-            .read(true)
             .write(true)
             .truncate(true)
             .create(true)
             .open(&tmp_path)
             .unwrap();
+        drop(file);
 
         let file_actor_addr = FileActor::new(&tmp_path, BLOCK_LENGTH as u64 * 2, BLOCK_LENGTH)
             .unwrap()

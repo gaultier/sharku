@@ -9,8 +9,6 @@ use std::ops::Deref;
 use std::sync::Arc;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::broadcast::Sender;
 
 const MAX_MESSAGE_LEN: usize = BLOCK_LENGTH as usize + 1 + 4 + 4;
 
@@ -124,7 +122,7 @@ impl Message {
 
 pub async fn peer_talk(
     torrent: Arc<Torrent>,
-    peer_id: usize,
+    _peer_id: usize,
     info_hash: [u8; 20],
     addr: Arc<String>,
 ) -> Result<()> {
@@ -157,9 +155,9 @@ pub async fn peer_talk(
         .with_context(|| "Failed to send Message::Choke")?;
     log::debug!("{}: Sent Message::Choke", &addr);
 
-    let (mut rd, mut wr) = io::split(socket);
+    let (mut rd, mut _wr) = io::split(socket);
 
-    let addr_writer = addr.clone();
+    let _addr_writer = addr.clone();
     tokio::spawn(async move {
         loop {
             todo!();
@@ -233,7 +231,6 @@ pub async fn peer_talk(
                 have = Some(bytes);
             }
             _ => {
-                let event = Event { message, peer_id };
                 todo!();
             }
         };
