@@ -2,13 +2,14 @@ use actix::prelude::*;
 use anyhow::bail;
 use sharku::fs::*;
 use sharku::net::*;
+use sharku::pieces::*;
 use sharku::state::*;
 use sharku::torrent_file::*;
 use sharku::tracker::*;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[actix::main]
 async fn main() -> Result<()> {
@@ -18,7 +19,10 @@ async fn main() -> Result<()> {
     let torrent = Arc::from(decode_torrent_from_file(&torrent_file_path)?);
     log::debug!("Torrent: {:#?}", torrent);
 
-    let file_path = PathBuf::from(&torrent.info.name);
+    let _pieces_actor_addr =
+        PiecesActor::new(torrent.info.pieces_count(), torrent.info.piece_length).start();
+
+    let file_path = Path::new(&torrent.info.name);
 
     let file_length: u64 = match torrent.info.length {
         Some(length) => length as u64,
