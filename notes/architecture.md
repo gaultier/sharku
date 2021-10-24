@@ -1,5 +1,13 @@
 # Architecture
 
+## Goals
+
+- Strictness/Correctness
+- Robustness
+- Minimalism
+
+## Components
+
 - One actor per peer connection
   * Split into 2 parts: the stream of frames (reading, with `Actor::add_stream`) and writing frames 
   * Sends/checks heartbeats
