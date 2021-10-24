@@ -5,6 +5,7 @@
 - Strictness/Correctness
 - Robustness
 - Minimalism
+- Cross-plaftorm
 
 ## Components
 
