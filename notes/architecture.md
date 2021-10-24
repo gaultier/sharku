@@ -31,6 +31,7 @@
 
 - Limits? Open connections, memory, connection throttling?
 - What is the UI? CLI, term UI, local web UI ... ?
+- Where to see logs? Log file, UI?
 - Tracker implementation
 - Bittorrent protocol: v1, magnet, v2, extensions
 - Fetch torrent file from a URL
